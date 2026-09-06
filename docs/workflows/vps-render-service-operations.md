@@ -94,16 +94,6 @@ Notable properties:
   not silently retried.
 - No `RemainAfterExit=yes`. This is what makes `inactive (dead)` the expected end state -
   see next section.
-- No `TimeoutStartSec=` override, so the unit uses the systemd-wide default (commonly 90s
-  unless changed in `/etc/systemd/system.conf`). This is a real risk for a data-dependent
-  workload: a render that has to fully re-download and process a PBF (no cached/unchanged
-  source) could plausibly exceed a short default start timeout, and systemd would then kill an
-  otherwise-healthy run purely on a clock, which would look identical to an application
-  failure in `systemctl status`. **Recommended fix:** add an explicit, generous
-  `TimeoutStartSec` (or `TimeoutStartSec=infinity`, relying on the application's own logic
-  and Docker to bound execution) to the service unit so a legitimately slow cold run is never
-  killed by an arbitrary systemd default. This is a one-line unit change, not a pipeline
-  redesign, and can be done independently of everything else in this issue.
 
 ## Why `inactive (dead)` After A Successful Run Is Correct
 
@@ -165,8 +155,6 @@ Verified layout under `/opt/poineer-render` (trimmed to the parts that matter op
 | --- | --- | --- |
 | `/opt/poineer-render/` | `jenkins:jenkins` | Deploy root |
 | `/opt/poineer-render/app/` | `jenkins:jenkins` | Published `.NET` DLL artifact from the now-removed ADR 0005 deploy stage - CI no longer writes here; the directory itself is leftover from prior releases and pending manual removal, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
-| `/opt/poineer-render/logs/render.log` | `jenkins:jenkins` | Leftover cron-era log file - **stale, no longer written**, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
-| `/opt/poineer-render/poineer-render.lock` | `jenkins:jenkins` | Leftover lock file at the old (pre-migration) path - **orphaned**, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
 | `/opt/poineer-render/scripts/` | `jenkins:jenkins` | Reserved by ADR 0005, still empty/unused |
 | `/opt/poineer-render/data/` | `10001:10001` (`poineer`) | Shared bind mount into the container; matches `Renderer:*`/`Publisher:*` paths in `appsettings.Production.json` |
 | `/opt/poineer-render/data/prod/renderer-work-dir/{berlin,mittelfranken}/` | `10001:10001` | Downloaded PBF + per-region work state |
