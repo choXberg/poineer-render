@@ -1,7 +1,7 @@
 // Jenkins Declarative Pipeline for POIneer.Render
 // - Builds and tests on 'develop'
 // - Creates a published application archive
-// - Deploys 'release/*' builds to the VPS and verifies the deployed artifact starts (#107)
+// - Builds and promotes a Docker image for release/* to poineer-render:production
 // - Avoids heavy rendering on Jenkins
 
 pipeline {
@@ -31,12 +31,6 @@ pipeline {
     PLANETILER_VERSION = '0.10.2'
 
     COVERAGE_MIN = '25'
-
-    // Jenkins runs directly on the VPS (issue #107) - deploying is a local sync into
-    // this fixed directory layout, not a remote copy, so no SSH credential is needed.
-    DEPLOY_ROOT = '/opt/poineer-render'
-    DEPLOY_APP_DIR = '/opt/poineer-render/app'
-    DOTNET_CURRENT = '/opt/dotnet/current/dotnet'
   }
 
   parameters {
@@ -329,57 +323,6 @@ pipeline {
             | sort -V \
             | awk 'NR>2{print p2} {p2=p1; p1=$0}' \
             | while IFS= read -r image_tag; do docker image rm "$image_tag" || true; done
-        '''
-      }
-    }
-
-    stage('Deploy to VPS') {
-      // Jenkins runs directly on the VPS (confirmed: /opt/poineer-render is already
-      // owned by the jenkins user) - so unlike the original placeholder sketch, this
-      // is a local filesystem sync, not an SSH/rsync-to-a-remote-host step (issue #107).
-      when {
-        expression {
-          return (env.BRANCH_NAME ?: '') ==~ /^release\/.+/
-        }
-      }
-      steps {
-        sh '''
-          set -eux
-          echo "[deploy] Deploying ${BRANCH_NAME} to ${DEPLOY_APP_DIR} ..."
-
-          mkdir -p "${DEPLOY_APP_DIR}" "${DEPLOY_ROOT}/logs" "${DEPLOY_ROOT}/scripts"
-
-          # --delete removes anything left over from a previous deploy that this
-          # release no longer produces (e.g. a renamed/removed file). Safe because
-          # DEPLOY_APP_DIR only ever holds what "dotnet publish" produced - nothing
-          # under it is ever hand-edited on the VPS.
-          rsync -a --delete "${PUBLISH_DIR}/" "${DEPLOY_APP_DIR}/"
-
-          echo "[deploy] Deployed contents:"
-          ls -la "${DEPLOY_APP_DIR}"
-        '''
-      }
-    }
-
-    stage('Verify Deployment') {
-      // Confirms the just-deployed artifact actually starts against the real
-      // Production config (appsettings.Production.json + regions.production.json
-      // path resolution) - --Renderer:DryRun=true makes Runner log its resolved
-      // paths and exit 0 immediately, before touching the network, the lock file,
-      // or any region, so this is safe to run unattended on the VPS (issue #107).
-      when {
-        expression {
-          return (env.BRANCH_NAME ?: '') ==~ /^release\/.+/
-        }
-      }
-      steps {
-        sh '''
-          set -eux
-          echo "[verify] Starting the deployed artifact (dry run)..."
-
-          "${DOTNET_CURRENT}" "${DEPLOY_APP_DIR}/POIneer.Render.dll" --Renderer:DryRun=true
-
-          echo "[verify] Deployed renderer started successfully."
         '''
       }
     }
