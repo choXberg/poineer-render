@@ -91,6 +91,23 @@ Future scheduled production runs should prefer that Docker image via a systemd t
 oneshot service instead of adding or updating crontab entries. See
 `docs/workflows/scheduled-renders.md`.
 
+## CI Verification Update (VPS Ops Review Cleanup)
+
+Following the VPS operations review (`docs/workflows/vps-render-service-operations.md`)
+and issue #194, the `Deploy to VPS` and `Verify Deployment` stages described above - along
+with the `DEPLOY_APP_DIR` and `DOTNET_CURRENT` pipeline variables - have been removed from
+the Jenkinsfile. `Verify Docker Image` already proves that the artifact actually deployed
+(the Docker image) starts correctly, and does so more thoroughly than the DLL-based check
+ever did: it additionally confirms Java, Flyway, and `osmium` are present and runs a real
+Flyway migration against a temporary SQLite database, whereas the DLL check only ever
+performed a bare `--Renderer:DryRun=true` start. Keeping a separate, less thorough check
+against an artifact nobody runs in production no longer served a purpose.
+
+The published-DLL directory this stage used to populate (`/opt/poineer-render/app`) is no
+longer written to by CI; the existing directory on the VPS from prior releases is leftover
+and can be removed manually. `/opt/dotnet/current` is left in place for optional manual
+debugging on the VPS, even though nothing in the pipeline depends on it anymore.
+
 ## References
 
 - #107 - Automated deployment of POIneer.Render release artifacts
@@ -98,3 +115,4 @@ oneshot service instead of adding or updating crontab entries. See
   already-implemented `ISingleInstanceLock`, not `flock`)
 - ADR 0001 - Prevent Overlapping Scheduled Renders (crontab target, `DryRun` rationale)
 - ADR 0002 - Local Dataset Publisher (`Publisher:DestinationDir` already assumes this VPS layout)
+- #194 - Clean up obsolete poineer-render VPS/CI artifacts and add service timeout
