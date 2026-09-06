@@ -7,6 +7,10 @@ public enum DatasetPublishOverwritePolicy
     // Leave the existing file in place and report the publish as skipped.
     Skip,
 
+    // Leave the existing file in place only when it already matches the source bytes;
+    // otherwise fail so an operator can investigate the same-version mismatch.
+    SkipIfIdentical,
+
     // Replace the existing file with the new one.
     Overwrite,
 

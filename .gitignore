@@ -56,12 +56,10 @@ nunit-*.xml
 
 *.sqlite
 
-# rendered output folders 
-
-**/renderer-work-dir*/
-**/renderer-out-dir*/   
-renderer-work-dir-fallback/
-renderer-out-dir-fallback/  
+# Renderer output and working directories
+renderer-work-dir*/
+renderer-out-dir*/
+renderer-publish-dir*/
 
 
 # Coverage reports

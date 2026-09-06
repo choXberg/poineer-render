@@ -9,8 +9,8 @@ namespace POIneer.Render.Infrastructure.FileSystem;
 // 16 hex chars) and combines it with the configured PublisherOptions.SchemaVersion. Two
 // renders from byte-identical PBF input with the same SchemaVersion always produce the
 // identical version string - so a forced re-render of otherwise-unchanged data publishes
-// to the same destination filename and is skipped by IDatasetPublisher's default Skip
-// overwrite policy, instead of accumulating a new file on every run. A genuinely updated
+// to the same destination filename and can be handled idempotently by IDatasetPublisher's
+// configured overwrite policy, instead of accumulating a new file on every run. A genuinely updated
 // OSM extract, or a deliberate SchemaVersion bump after a POIneer.Render release changes
 // the exported schema/mapping, both produce a new version and a new published file.
 public sealed class FileHashDatasetVersionCalculator : IDatasetVersionCalculator

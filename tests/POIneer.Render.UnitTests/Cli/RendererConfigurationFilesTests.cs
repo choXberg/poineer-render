@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using POIneer.Render.Application.Contracts;
 using POIneer.Render.Application.Options;
 using Xunit;
 
@@ -9,8 +10,8 @@ namespace POIneer.Render.UnitTests.Cli;
 public sealed class RendererConfigurationFilesTests
 {
     [Theory]
-    [InlineData("appsettings.json", "Cli/config/regions.production.json", "berlin")]
-    [InlineData("appsettings.Development.json", "Cli/config/regions.local.json", "berlin")]
+    [InlineData("appsettings.json", "Cli/config/regions.production.json", "geofabrik/europe/germany/berlin")]
+    [InlineData("appsettings.Development.json", "Cli/config/regions.local.json", "geofabrik/europe/germany/berlin")]
     [InlineData("appsettings.Production.json", "Cli/config/regions.production.json", null)]
     public void RendererConfiguration_HasExpectedOnlyRegionIdAndExistingRegionsFile(
         string settingsFileName,
@@ -68,7 +69,7 @@ public sealed class RendererConfigurationFilesTests
     // variables and command-line args are intentionally not layered in here - they are
     // not part of what this regression is about.
     [Theory]
-    [InlineData("Development", "berlin")]
+    [InlineData("Development", "geofabrik/europe/germany/berlin")]
     [InlineData("Production", null)]
     public void RendererConfiguration_MergedEnvironmentConfig_ResolvesExpectedOnlyRegionId(
         string environmentName,
@@ -105,6 +106,81 @@ public sealed class RendererConfigurationFilesTests
             .Replace('\\', '/')
             .Should()
             .StartWith("/opt/poineer-render/data/");
+    }
+
+    [Theory]
+    [InlineData("appsettings.json")]
+    [InlineData("appsettings.Development.json")]
+    [InlineData("appsettings.Production.json")]
+    public void PublisherConfiguration_UsesCurrentSchemaVersion(string settingsFileName)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var settingsPath = Path.Combine(repositoryRoot, "src", "POIneer.Render", settingsFileName);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+        var publisher = document.RootElement.GetProperty("Publisher");
+
+        publisher.GetProperty("SchemaVersion").GetString().Should().Be(new PublisherOptions { DestinationDir = "unused" }.SchemaVersion);
+    }
+
+    [Theory]
+    [InlineData("appsettings.json")]
+    [InlineData("appsettings.Development.json")]
+    [InlineData("appsettings.Production.json")]
+    public void PublisherConfiguration_SetsPublisherTargetExplicitly(string settingsFileName)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var settingsPath = Path.Combine(repositoryRoot, "src", "POIneer.Render", settingsFileName);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+        var publisher = document.RootElement.GetProperty("Publisher");
+
+        publisher.TryGetProperty("Target", out var targetElement)
+            .Should().BeTrue($"{settingsFileName} should choose its publisher target explicitly");
+
+        var target = targetElement.GetString();
+
+        target.Should().NotBeNullOrWhiteSpace();
+        Enum.TryParse<DatasetPublisherTarget>(target, ignoreCase: false, out _)
+            .Should().BeTrue($"{settingsFileName} should use a known publisher target");
+    }
+
+    [Theory]
+    [InlineData("appsettings.json")]
+    [InlineData("appsettings.Development.json")]
+    [InlineData("appsettings.Production.json")]
+    public void PublisherConfiguration_UsesSkipIfIdenticalOverwritePolicy(string settingsFileName)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var settingsPath = Path.Combine(repositoryRoot, "src", "POIneer.Render", settingsFileName);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+        var publisher = document.RootElement.GetProperty("Publisher");
+
+        publisher.GetProperty("OverwritePolicy").GetString()
+            .Should().Be(nameof(DatasetPublishOverwritePolicy.SkipIfIdentical));
+    }
+
+    [Fact]
+    public void LaunchSettings_UsesDevelopmentEnvironment_ForLocalDotnetRun()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var launchSettingsPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "POIneer.Render",
+            "Properties",
+            "launchSettings.json");
+
+        using var document = JsonDocument.Parse(File.ReadAllText(launchSettingsPath));
+
+        document.RootElement
+            .GetProperty("profiles")
+            .GetProperty("POIneer.Render")
+            .GetProperty("environmentVariables")
+            .GetProperty("DOTNET_ENVIRONMENT")
+            .GetString()
+            .Should().Be("Development");
     }
 
     private static string FindRepositoryRoot()

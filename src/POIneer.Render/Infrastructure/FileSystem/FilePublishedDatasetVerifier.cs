@@ -13,10 +13,9 @@ namespace POIneer.Render.Infrastructure.FileSystem;
 // FileDatasetArtifactMetadataFactory already implements.
 //
 // Out of scope (see issue #135): re-validating POI content post-upload, mobile download
-// verification, automatic corruption repair, cross-region replication verification. Also
-// out of scope here: a blob-specific verifier for #134's Azure publisher - that destination
-// is no longer an ordinary local file and will need its own IPublishedDatasetVerifier
-// implementation behind the same abstraction.
+// verification, automatic corruption repair, and cross-region replication verification.
+// Non-filesystem publish targets, such as Azure Blob Storage, need their own
+// IPublishedDatasetVerifier implementation behind the same abstraction.
 public sealed class FilePublishedDatasetVerifier : IPublishedDatasetVerifier
 {
     private readonly IDatasetArtifactMetadataFactory _metadataFactory;

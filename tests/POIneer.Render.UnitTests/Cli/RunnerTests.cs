@@ -19,6 +19,7 @@ public sealed class RunnerTests
     private readonly IFileDownloader _fileDownloader = Substitute.For<IFileDownloader>();
     private readonly IRegionSource _regionSource = Substitute.For<IRegionSource>();
     private readonly IRenderRegion _renderRegion = Substitute.For<IRenderRegion>();
+    private readonly IRegionUpdateChecker _regionUpdateChecker = Substitute.For<IRegionUpdateChecker>();
     private readonly ISingleInstanceLockFactory _lockFactory = Substitute.For<ISingleInstanceLockFactory>();
     private readonly ISingleInstanceLock _instanceLock = Substitute.For<ISingleInstanceLock>();
 
@@ -27,6 +28,9 @@ public sealed class RunnerTests
         // By default the lock is always available, so existing rendering behavior is unaffected.
         _instanceLock.TryAcquire().Returns(true);
         _lockFactory.Create(Arg.Any<string>()).Returns(_instanceLock);
+        _regionUpdateChecker
+            .CheckAsync(Arg.Any<RegionDto>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ChangedResult(callInfo.ArgAt<RegionDto>(0))));
     }
 
     [Fact]
@@ -42,6 +46,7 @@ public sealed class RunnerTests
         // Assert
         result.Should().Be(0);
         await _regionSource.DidNotReceiveWithAnyArgs().GetRegionsAsync(default!, default);
+        await _regionUpdateChecker.DidNotReceiveWithAnyArgs().CheckAsync(default!, default!, default);
         await _fileDownloader.DidNotReceiveWithAnyArgs().DownloadAsync(default!, default!, default);
         await _renderRegion.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, default!, default);
     }
@@ -63,6 +68,7 @@ public sealed class RunnerTests
         ex.Message.Should().Contain(expectedRegionsPath);
 
         await _regionSource.DidNotReceiveWithAnyArgs().GetRegionsAsync(default!, default);
+        await _regionUpdateChecker.DidNotReceiveWithAnyArgs().CheckAsync(default!, default!, default);
     }
 
     [Fact]
@@ -103,14 +109,19 @@ public sealed class RunnerTests
         File.Exists(expectedPbfPath).Should().BeTrue();
         await _fileDownloader.Received(1).DownloadAsync(region.PbfUrl, expectedPbfPath, Arg.Any<CancellationToken>());
         await _renderRegion.Received(1).RunAsync(region, workDir, outDir, Arg.Any<CancellationToken>());
+        await _regionUpdateChecker.Received(1).MarkProcessedAsync(
+            region,
+            Path.Combine(workDir, region.Id, "render-state.json"),
+            Arg.Any<RegionUpdateMetadata>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RunAsync_SkipsDownload_WhenPbfAlreadyExistsAndOverwritePbfIsDisabled()
+    public async Task RunAsync_SkipsDownloadButRunsRenderUseCase_WhenPbfAlreadyExistsAndRemoteMetadataIsUnchanged()
     {
         // Arrange
         await using var tempDir = TestTemporaryDirectories.Create("runner-skip-existing-pbf", false);
-        var options = CreateOptions(overwritePbf: false);
+        var options = CreateOptions(overwriteDatabase: true, overwritePbf: false);
         var sut = CreateSut(tempDir.DirectoryPath, options);
 
         var regionsPath = Path.GetFullPath(Path.Combine(tempDir.DirectoryPath, options.RegionsJson));
@@ -122,7 +133,16 @@ public sealed class RunnerTests
 
         var workDir = Path.GetFullPath(Path.Combine(tempDir.DirectoryPath, options.WorkDir));
         var pbfPath = Path.Combine(workDir, region.Id, "osm.pbf");
+        var statePath = Path.Combine(workDir, region.Id, "render-state.json");
         TestFiles.WriteAllText(pbfPath, "existing pbf");
+        var metadata = new RegionUpdateMetadata("\"abc\"", DateTimeOffset.Parse("2026-01-01T00:00:00Z"), 42);
+        _regionUpdateChecker
+            .CheckAsync(region, statePath, Arg.Any<CancellationToken>())
+            .Returns(new RegionUpdateCheckResult(
+                ShouldRedownloadPbf: false,
+                Reason: "Remote PBF metadata is unchanged.",
+                RemoteMetadata: metadata,
+                StoredState: new RegionRenderState(region.Id, region.PbfUrl, metadata, DateTimeOffset.UtcNow)));
 
         // Act
         await sut.RunAsync(CancellationToken.None);
@@ -133,6 +153,11 @@ public sealed class RunnerTests
             region,
             workDir,
             Path.GetFullPath(Path.Combine(tempDir.DirectoryPath, options.OutDir)),
+            Arg.Any<CancellationToken>());
+        await _regionUpdateChecker.Received(1).MarkProcessedAsync(
+            region,
+            statePath,
+            metadata,
             Arg.Any<CancellationToken>());
     }
 
@@ -239,6 +264,16 @@ public sealed class RunnerTests
         result.Should().Be(1);
         await _renderRegion.Received(1).RunAsync(berlin, workDir, outDir, Arg.Any<CancellationToken>());
         await _renderRegion.Received(1).RunAsync(hamburg, workDir, outDir, Arg.Any<CancellationToken>());
+        await _regionUpdateChecker.DidNotReceive().MarkProcessedAsync(
+            berlin,
+            Arg.Any<string>(),
+            Arg.Any<RegionUpdateMetadata>(),
+            Arg.Any<CancellationToken>());
+        await _regionUpdateChecker.Received(1).MarkProcessedAsync(
+            hamburg,
+            Arg.Any<string>(),
+            Arg.Any<RegionUpdateMetadata>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -268,6 +303,10 @@ public sealed class RunnerTests
             region.PbfUrl,
             Arg.Any<string>(),
             ct);
+        await _regionUpdateChecker.Received(1).CheckAsync(
+            region,
+            Arg.Any<string>(),
+            ct);
         await _renderRegion.Received(1).RunAsync(
             region,
             Arg.Any<string>(),
@@ -290,6 +329,7 @@ public sealed class RunnerTests
         // Assert
         result.Should().Be(0);
         await _regionSource.DidNotReceiveWithAnyArgs().GetRegionsAsync(default!, default);
+        await _regionUpdateChecker.DidNotReceiveWithAnyArgs().CheckAsync(default!, default!, default);
         await _fileDownloader.DidNotReceiveWithAnyArgs().DownloadAsync(default!, default!, default);
         await _renderRegion.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, default!, default);
     }
@@ -352,6 +392,38 @@ public sealed class RunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_ProcessesRegion_WhenPbfExistsButRemoteMetadataChanged()
+    {
+        // Arrange
+        await using var tempDir = TestTemporaryDirectories.Create("runner-render-changed-region", false);
+        var options = CreateOptions(overwritePbf: false);
+        var sut = CreateSut(tempDir.DirectoryPath, options);
+
+        var regionsPath = Path.GetFullPath(Path.Combine(tempDir.DirectoryPath, options.RegionsJson));
+        TestFiles.WriteAllText(regionsPath, "[]");
+
+        var region = BerlinRegion();
+        _regionSource.GetRegionsAsync(regionsPath, Arg.Any<CancellationToken>())
+            .Returns(new[] { region });
+
+        var workDir = Path.GetFullPath(Path.Combine(tempDir.DirectoryPath, options.WorkDir));
+        var pbfPath = Path.Combine(workDir, region.Id, "osm.pbf");
+        TestFiles.WriteAllText(pbfPath, "existing pbf");
+
+        // Act
+        var result = await sut.RunAsync(CancellationToken.None);
+
+        // Assert
+        result.Should().Be(0);
+        await _fileDownloader.Received(1).DownloadAsync(region.PbfUrl, pbfPath, Arg.Any<CancellationToken>());
+        await _renderRegion.Received(1).RunAsync(
+            region,
+            workDir,
+            Path.GetFullPath(Path.Combine(tempDir.DirectoryPath, options.OutDir)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_ResolvesConfiguredLockFilePath_AgainstContentRoot()
     {
         // Arrange
@@ -385,6 +457,7 @@ public sealed class RunnerTests
             _fileDownloader,
             _regionSource,
             _renderRegion,
+            _regionUpdateChecker,
             _lockFactory,
             Options.Create(options));
 
@@ -392,6 +465,7 @@ public sealed class RunnerTests
         string workDir = "work",
         string outDir = "out",
         string regionsJson = "regions.json",
+        bool overwriteDatabase = false,
         bool overwritePbf = false,
         bool dryRun = false,
         string? onlyRegionId = null,
@@ -401,6 +475,7 @@ public sealed class RunnerTests
             WorkDir = workDir,
             OutDir = outDir,
             RegionsJson = regionsJson,
+            OverwriteDatabase = overwriteDatabase,
             OverwritePbf = overwritePbf,
             DryRun = dryRun,
             OnlyRegionId = onlyRegionId,
@@ -414,6 +489,20 @@ public sealed class RunnerTests
             Name: "Berlin",
             PbfUrl: "https://example.com/berlin.osm.pbf",
             Poly: "berlin.poly");
+
+    private static RegionUpdateCheckResult ChangedResult(RegionDto region)
+    {
+        var metadata = new RegionUpdateMetadata("\"etag\"", DateTimeOffset.Parse("2026-01-01T00:00:00Z"), 1024);
+        return new RegionUpdateCheckResult(
+            ShouldRedownloadPbf: true,
+            Reason: "Remote ETag changed.",
+            RemoteMetadata: metadata,
+            StoredState: new RegionRenderState(
+                region.Id,
+                region.PbfUrl,
+                new RegionUpdateMetadata("\"old-etag\"", DateTimeOffset.Parse("2025-01-01T00:00:00Z"), 512),
+                DateTimeOffset.Parse("2025-01-01T00:00:00Z")));
+    }
 
     private sealed class FakeHostEnvironment : IHostEnvironment
     {

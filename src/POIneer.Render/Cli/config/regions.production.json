@@ -1,13 +1,13 @@
 [
   {
-    "Id": "berlin",
+    "Id": "geofabrik/europe/germany/berlin",
     "Name": "Berlin",
     "Country": "Germany",
     "Category": "City",
     "PbfUrl": "https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf"
   },
   {
-    "Id": "mittelfranken",
+    "Id": "geofabrik/europe/germany/bayern/mittelfranken",
     "Name": "Mittelfranken",
     "Country": "Germany",
     "Category": "District",

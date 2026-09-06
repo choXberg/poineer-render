@@ -1,8 +1,7 @@
 namespace POIneer.Render.Application.Contracts;
 
-// Outcome of a publish attempt. WasSkipped is true when a file for the same region and
-// version already existed at the destination and PublisherOptions.OverwritePolicy is Skip
-// - the existing file was left untouched.
+// Outcome of a publish attempt. WasSkipped is true when publishing left an existing
+// destination file in place because the configured overwrite policy allowed skipping.
 public sealed record DatasetPublishResult(
     string DestinationPath,
     bool WasSkipped);

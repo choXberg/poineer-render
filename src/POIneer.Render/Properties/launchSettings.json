@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "POIneer.Render": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

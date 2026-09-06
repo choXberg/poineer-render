@@ -9,9 +9,12 @@ namespace POIneer.Render.UnitTests.Adapters.Input;
 public sealed class GeofabrikRegionSourceTests
 {
     [Fact]
-    public async Task GetRegionsAsync_ReadsRegionsFromJson_AndIgnoresUnknownProperties()
+    public async Task GetRegionsAsync_ReadsRegionsFromJson_IncludingHierarchicalIdAndDisplayMetadata()
     {
-        // Arrange
+        // Arrange: Country/Category are optional display/filter metadata (issue #175,
+        // ADR 0007) - RegionDto now captures them instead of silently dropping them, and
+        // Id may be a globally unique, hierarchical identifier such as
+        // "geofabrik/europe/germany/berlin".
         await using var tempDir = TestTemporaryDirectories.Create("geofabrik-region-source-reads-json", false);
         var regionsPath = Path.Combine(tempDir.DirectoryPath, "regions.json");
         TestFiles.WriteAllText(
@@ -19,7 +22,7 @@ public sealed class GeofabrikRegionSourceTests
             """
             [
               {
-                "Id": "berlin",
+                "Id": "geofabrik/europe/germany/berlin",
                 "Name": "Berlin",
                 "Country": "Germany",
                 "Category": "City",
@@ -27,7 +30,7 @@ public sealed class GeofabrikRegionSourceTests
                 "Poly": "berlin.poly"
               },
               {
-                "Id": "mittelfranken",
+                "Id": "geofabrik/europe/germany/bayern/mittelfranken",
                 "Name": "Mittelfranken",
                 "Country": "Germany",
                 "Category": "District",
@@ -43,13 +46,17 @@ public sealed class GeofabrikRegionSourceTests
 
         // Assert
         regions.Should().HaveCount(2);
-        regions[0].Id.Should().Be("berlin");
+        regions[0].Id.Should().Be("geofabrik/europe/germany/berlin");
         regions[0].Name.Should().Be("Berlin");
+        regions[0].Country.Should().Be("Germany");
+        regions[0].Category.Should().Be("City");
         regions[0].PbfUrl.Should().Be("https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf");
         regions[0].Poly.Should().Be("berlin.poly");
 
-        regions[1].Id.Should().Be("mittelfranken");
+        regions[1].Id.Should().Be("geofabrik/europe/germany/bayern/mittelfranken");
         regions[1].Name.Should().Be("Mittelfranken");
+        regions[1].Country.Should().Be("Germany");
+        regions[1].Category.Should().Be("District");
         regions[1].PbfUrl.Should().Be("https://download.geofabrik.de/europe/germany/bayern/mittelfranken-latest.osm.pbf");
         regions[1].Poly.Should().BeNull();
     }

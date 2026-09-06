@@ -114,6 +114,8 @@ Key principles:
 - external tools such as Flyway and process execution are behind abstractions where useful
 - filesystem-sensitive behavior is tested with isolated temporary directories
 - configuration is represented by strongly typed options
+- dataset rendering compute is separated from dataset storage and distribution; see
+  [Hybrid Dataset Architecture](docs/architecture/hybrid-dataset-architecture.md)
 
 ---
 
@@ -204,7 +206,7 @@ Windows PowerShell:
 ./scripts/run-dev.ps1
 ```
 
-Development mode reads `src/POIneer.Render/appsettings.Development.json`, renders only the `berlin` region, writes work files below `data/dev/renderer-work-dir`, and writes output artifacts below `data/dev/renderer-out-dir` relative to the application content root.
+Development mode reads `src/POIneer.Render/appsettings.Development.json`, renders only the `geofabrik/europe/germany/berlin` region, writes work files below `data/dev/renderer-work-dir`, writes output artifacts below `data/dev/renderer-out-dir`, and publishes local artifacts below `data/dev/renderer-publish-dir`. `dotnet run --project src/POIneer.Render` uses the checked-in launch profile to select `DOTNET_ENVIRONMENT=Development`; production scripts and published artifacts set the environment explicitly.
 
 ---
 
@@ -217,6 +219,21 @@ Runtime configuration is loaded in this order:
 3. environment variables with the `POINEER_RENDER__` prefix
 4. command-line arguments
 
+Relative filesystem paths in renderer configuration are resolved against the renderer content
+root, normally `src/POIneer.Render` during local development. For example,
+`data/dev/renderer-out-dir` resolves to `src/POIneer.Render/data/dev/renderer-out-dir`, not to
+`src/POIneer.Render/bin/Debug/net10.0/data/dev/renderer-out-dir`. Absolute production paths,
+such as `/opt/poineer-render/...`, are kept unchanged.
+
+Development path roles:
+
+| Path | Role |
+| --- | --- |
+| `Renderer:WorkDir` | Downloaded PBF input, cut PBF files, and per-region render state |
+| `Renderer:OutDir` | Canonical generated SQLite and optional vector tile artifacts |
+| `Publisher:DestinationDir` | Local publish destination when `Publisher:Target` is `Local` |
+| `Temp:RootFolderName` | Folder name below the operating-system temp directory for temporary working directories |
+
 Important renderer options:
 
 | Option | Purpose | Development default |
@@ -224,17 +241,34 @@ Important renderer options:
 | `Renderer:WorkDir` | Temporary and downloaded source data | `data/dev/renderer-work-dir` |
 | `Renderer:OutDir` | Final SQLite output files | `data/dev/renderer-out-dir` |
 | `Renderer:RegionsJson` | Region configuration file | `Cli/config/regions.local.json` |
-| `Renderer:OnlyRegionId` | Optional filter for one region | `berlin` |
+| `Renderer:OnlyRegionId` | Optional filter for one region | `geofabrik/europe/germany/berlin` |
 | `Renderer:DryRun` | Exit after configuration/logging without rendering | `false` |
 | `Renderer:LockFilePath` | Lock file preventing overlapping runs (e.g. concurrent cron executions) | `<WorkDir>/poineer-render.lock` (auto) |
+
+Region ids in `Renderer:RegionsJson` are globally unique, hierarchical technical
+identifiers such as `geofabrik/europe/germany/berlin` - see
+[ADR 0007](docs/decisions/0007-hierarchical-region-identifiers.md) for the naming
+convention, how a region id maps to a filesystem path / Azure Blob name, and the
+separate human-readable `Name`/`Country`/`Category` display fields.
 
 Important publisher options:
 
 | Option | Purpose | Development default |
 | --- | --- | --- |
-| `Publisher:DestinationDir` | Directory validated datasets are published to (local filesystem; also used for the VPS deployment) | `data/dev/renderer-publish-dir` |
-| `Publisher:OverwritePolicy` | What happens when a file for the same region/version already exists at the destination (`Skip`, `Overwrite`, `Fail`) | `Skip` |
-| `Publisher:SchemaVersion` | Bumped deliberately when a new POIneer.Render release changes the exported schema/mapping; combined with a hash of the source PBF to form the dataset version, so unchanged input never republishes under a new version | `1` |
+| `Publisher:Target` | Publishing implementation to use (`Local` or `AzureBlob`) | `Local` |
+| `Publisher:DestinationDir` | Directory validated datasets are published to when `Publisher:Target` is `Local` | `data/dev/renderer-publish-dir` |
+| `Publisher:OverwritePolicy` | What happens when a file for the same region/version already exists at the destination (`Skip`, `SkipIfIdentical`, `Overwrite`, `Fail`); `SkipIfIdentical` skips matching artifacts and fails on mismatches, while only `Overwrite` replaces existing files | `SkipIfIdentical` |
+| `Publisher:SchemaVersion` | Bumped deliberately when a POIneer.Render release changes the exported schema, mapping, export logic, or dataset semantics; combined with a hash of the source PBF to form the dataset version, so unchanged input can be republished under a new version only when the rendered dataset intentionally changes | `2` |
+
+Important Azure Blob publisher options:
+
+| Option | Purpose | Development default |
+| --- | --- | --- |
+| `AzureBlobPublisher:AccountName` | Storage account name used to build the Blob service endpoint when `BlobEndpoint` is not set | `poineerstoragedev` |
+| `AzureBlobPublisher:BlobEndpoint` | Optional explicit Blob service endpoint | `null` |
+| `AzureBlobPublisher:ContainerName` | Blob container that stores published regional datasets | `regions` |
+| `AzureBlobPublisher:MaxUploadsPerRun` | Safety limit for how many dataset blobs one renderer run may upload | `1` |
+| `AzureBlobPublisher:MaxUploadBytesPerRun` | Safety limit for total uploaded dataset bytes in one renderer run | `1073741824` |
 
 Important Flyway options:
 
@@ -248,7 +282,7 @@ Example environment override:
 
 ```bash
 POINEER_RENDER__RENDERER__DRYRUN=true \
-POINEER_RENDER__RENDERER__ONLYREGIONID=berlin \
+POINEER_RENDER__RENDERER__ONLYREGIONID=geofabrik/europe/germany/berlin \
 dotnet run --project src/POIneer.Render/POIneer.Render.csproj
 ```
 
@@ -368,7 +402,7 @@ Example:
 ```json
 {
   "Renderer": {
-    "OnlyRegionId": "berlin"
+    "OnlyRegionId": "geofabrik/europe/germany/berlin"
   }
 }
 ```
@@ -376,7 +410,7 @@ Example:
 Environment variables can override configuration values:
 
 ```bash
-POINEER_RENDER__RENDERER__ONLYREGIONID=berlin
+POINEER_RENDER__RENDERER__ONLYREGIONID=geofabrik/europe/germany/berlin
 ```
 
 ---
@@ -400,7 +434,7 @@ data/
 Example generated database:
 
 ```text
-data/prod/out/berlin/poi.sqlite
+data/prod/out/geofabrik/europe/germany/berlin/poi.sqlite
 ```
 
 Temporary and intermediate files are written to the corresponding `work` directory.
@@ -453,3 +487,5 @@ This project is intended as a learning and open-source project. The final licens
 - [ADR 0001: Prevent Overlapping Scheduled Renders](docs/decisions/0001-prevent-overlapping-scheduled-renders.md)
 - [ADR 0002: Local Dataset Publisher](docs/decisions/0002-local-dataset-publisher.md)
 - [ADR 0003: Dataset Artifact Metadata](docs/decisions/0003-dataset-artifact-metadata.md)
+- [Hybrid Dataset Architecture](docs/architecture/hybrid-dataset-architecture.md)
+- [Azure Dataset Storage](docs/workflows/azure-dataset-storage.md)

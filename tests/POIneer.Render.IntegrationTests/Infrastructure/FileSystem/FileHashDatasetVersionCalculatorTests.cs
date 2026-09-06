@@ -7,8 +7,8 @@ namespace POIneer.Render.IntegrationTests.Infrastructure.FileSystem;
 
 // Exercises FileHashDatasetVersionCalculator against the real filesystem. The whole point
 // of this type is that identical input always produces the identical version - that's what
-// makes republishing unchanged data a no-op under IDatasetPublisher's default Skip
-// overwrite policy - so these tests focus on that stability property rather than on the
+// lets IDatasetPublisher handle republishing unchanged data idempotently under the
+// configured overwrite policy - so these tests focus on that stability property rather than on the
 // exact hash algorithm/format.
 public sealed class FileHashDatasetVersionCalculatorTests
 {

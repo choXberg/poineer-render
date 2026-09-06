@@ -12,6 +12,8 @@ a local publisher (#132), Azure Blob Storage provisioning (#133), an Azure
 publisher (#134), published-dataset integrity verification (#135),
 configurable render execution targets (#136), and documentation of the
 resulting hybrid architecture (#137).
+The public architecture summary for that separation lives in
+[`docs/architecture/hybrid-dataset-architecture.md`](../architecture/hybrid-dataset-architecture.md).
 
 POIneer.Render already produces validated, canonical `.sqlite` datasets per
 region in `outDir` (see `RenderRegion` and ADR-less prior work). What is
@@ -43,8 +45,12 @@ its first implementation:
   file at the real destination path.
 - What happens when a file for the same region/version already exists at
   the destination is governed by an explicit
-  `PublisherOptions.OverwritePolicy` (`Skip` (default), `Overwrite`, or
-  `Fail`), rather than an implicit, undocumented behavior.
+  `PublisherOptions.OverwritePolicy` (`Skip` (default), `SkipIfIdentical`,
+  `Overwrite`, or `Fail`), rather than an implicit, undocumented behavior.
+  `Skip` preserves the existing file unconditionally. `SkipIfIdentical`
+  preserves it only when it already matches the source bytes; otherwise it
+  fails so the same-version mismatch can be investigated. `Overwrite` is the
+  only policy that replaces an existing destination.
 - `RenderRegion` calls `IDatasetPublisher.PublishAsync` right after
   promoting a validated dataset to its canonical `outDir` location. The
   version is computed by `IDatasetVersionCalculator`
@@ -57,18 +63,30 @@ its first implementation:
   content-derived version fixes that: identical PBF content and an
   unchanged `SchemaVersion` always compute the identical version string,
   so republishing unchanged data lands on the same destination filename
-  and is skipped by `IDatasetPublisher`'s default `Skip` overwrite policy
+  and can be skipped by `IDatasetPublisher`'s overwrite policy
   instead of accumulating a new file on every run. A new version - and a
   new published file - is only produced when the OSM PBF genuinely
   changed, or a deployment deliberately bumps `SchemaVersion` (e.g. a new
   POIneer.Render release changes the exported schema or POI mapping).
+- `PublisherOptions.SchemaVersion` must be bumped whenever a change intentionally alters the
+  generated SQLite dataset artifact while the source PBF can remain unchanged. This includes
+  SQLite schema changes, POI tag mapping changes, export logic changes, and dataset semantics
+  changes. Without the bump, the same `{SchemaVersion}-{PbfHash}` version can be reused for
+  byte-different SQLite output. Dev and production configuration use `SkipIfIdentical` so this
+  mismatch is surfaced instead of silently replacing an already published artifact. Operators can
+  investigate the mismatch, bump `SchemaVersion` when the rendered dataset intentionally changed,
+  or temporarily choose `Overwrite` when replacing the existing destination is deliberate.
 - `PublisherOptions.DestinationDir` is required and validated on startup
-  (`ValidateOnStart`), matching `RendererOptions`. The value itself is never
-  hardcoded to a specific machine: `appsettings.Development.json` points at
-  a relative `data/dev/renderer-publish-dir`, `appsettings.Production.json`
-  at an absolute VPS path
-  (`/opt/poineer-render/data/prod/renderer-publish-dir`), the same pattern
-  already used for `Renderer:WorkDir`/`OutDir`/`LockFilePath`.
+  (`ValidateOnStart`) when `PublisherOptions.Target` is `Local`, matching
+  `RendererOptions`. The value itself is never hardcoded to a specific
+  machine: `appsettings.Development.json` points at a relative
+  `data/dev/renderer-publish-dir`, `appsettings.Production.json` at an
+  absolute VPS path (`/opt/poineer-render/data/prod/renderer-publish-dir`),
+  the same pattern already used for `Renderer:WorkDir`/`OutDir`/
+  `LockFilePath`.
+- `PublisherOptions.Target` selects the configured publisher implementation.
+  Existing development, CI, and VPS configurations explicitly use `Local`.
+  `AzureBlob` selects the Azure Blob Storage publisher introduced by #134.
 
 Naming note: `RenderRegion` already used the word "publish" informally for
 promoting a validated staging file to its canonical `outDir` location (a
@@ -88,11 +106,13 @@ synchronization between VPS and Azure, and public download URLs.
   region from now on: a publish failure fails that region's render (surfaced
   the same way a validation failure already is, via `RenderRegion` throwing
   and `Runner` recording the region as failed).
-- `Publisher:DestinationDir` is a new required setting. Existing
-  `appsettings.json`/`appsettings.Development.json`/
-  `appsettings.Production.json` already define it, so no action is needed
-  for the default dev/CI/VPS setups; a fully custom deployment overriding
-  every renderer setting via environment variables will also need to set
+- `Publisher:Target` is now explicit in configuration and defaults to `Local`
+  in code. `Publisher:DestinationDir` remains required for the local target.
+  Existing `appsettings.json`/`appsettings.Development.json`/
+  `appsettings.Production.json` already define both values, so no action is
+  needed for the default dev/CI/VPS setups; a fully custom local deployment
+  overriding every renderer setting via environment variables will also need
+  to set `POINEER_RENDER__PUBLISHER__TARGET=Local` and
   `POINEER_RENDER__PUBLISHER__DESTINATIONDIR`.
 - Testable: `LocalDatasetPublisher` is covered by integration tests against
   the real filesystem (copy, directory creation, all three overwrite
@@ -121,3 +141,4 @@ synchronization between VPS and Azure, and public download URLs.
 - #137 - Document hybrid dataset architecture
 - #110 - Renderer scheduled VPS config groundwork
 - ADR 0001 - Prevent Overlapping Scheduled Renders
+- Hybrid Dataset Architecture - `docs/architecture/hybrid-dataset-architecture.md`

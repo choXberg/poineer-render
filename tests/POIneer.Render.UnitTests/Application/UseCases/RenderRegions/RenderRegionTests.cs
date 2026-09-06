@@ -225,6 +225,66 @@ public sealed class RenderRegionTests
     }
 
     [Fact]
+    public async Task RunAsync_ReRenders_WhenPbfIsNewerThanExistingOutput_AndOverwriteDisabled()
+    {
+        // Arrange
+        var sut = CreateSut();
+
+        var region = new RegionDto(
+            Id: "berlin",
+            Name: "Berlin",
+            PbfUrl: "http://example.com/berlin.osm.pbf",
+            Poly: "berlin.poly");
+
+        await using var tempDir =
+            TestTemporaryDirectories.Create(
+                "re-renders-when-pbf-is-newer",
+                false);
+
+        var workDir = tempDir.CreateSubDir("work").DirectoryPath;
+        var outDir = tempDir.CreateSubDir("out").DirectoryPath;
+
+        var pbfPath = Path.Combine(workDir, region.Id, "osm.pbf");
+        TestFiles.WriteAllText(pbfPath, "new pbf bytes");
+
+        var existingOutputPath = Path.Combine(outDir, region.Id, "poi.sqlite");
+        TestFiles.WriteAllText(existingOutputPath, "existing sqlite bytes");
+
+        File.SetLastWriteTimeUtc(existingOutputPath, DateTime.UtcNow.AddMinutes(-5));
+        File.SetLastWriteTimeUtc(pbfPath, DateTime.UtcNow);
+
+        var cutPbfPath = Path.Combine(workDir, region.Id, "cut.osm.pbf");
+        _polygonCutter
+            .CutAsync(pbfPath, region.Poly, Arg.Any<CancellationToken>())
+            .Returns(cutPbfPath);
+
+        _osmReader
+            .ReadAmenityNodesAsync(cutPbfPath, Arg.Any<CancellationToken>())
+            .Returns(AsyncEnumerable.Empty<RawPoi>());
+
+        _exporter
+            .ExportAsync(
+                Arg.Any<IAsyncEnumerable<Poi>>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                TestFiles.WriteAllText(callInfo.ArgAt<string>(1), "new sqlite bytes");
+                return Task.CompletedTask;
+            });
+
+        // Act
+        await sut.RunAsync(region, workDir, outDir, CancellationToken.None);
+
+        // Assert
+        await _polygonCutter
+            .Received(1)
+            .CutAsync(pbfPath, region.Poly, Arg.Any<CancellationToken>());
+
+        Assert.Equal("new sqlite bytes", File.ReadAllText(existingOutputPath));
+    }
+
+    [Fact]
     public async Task RunAsync_CallsPorts_WithExpectedPaths_AndInOrder()
     {
         // Arrange
@@ -358,7 +418,7 @@ public sealed class RenderRegionTests
 
         // Assert
         var expectedCanonicalMapPath = Path.Combine(outDir, region.Id, "map.pmtiles");
-        var expectedStagingMapPath = expectedCanonicalMapPath + ".tmp";
+        var expectedStagingMapPath = Path.Combine(outDir, region.Id, "map.tmp.pmtiles");
 
         await vectorTileGenerator
             .Received(1)
@@ -489,7 +549,7 @@ public sealed class RenderRegionTests
         // Assert
         await vectorTileGenerator
             .Received(1)
-            .GenerateAsync(Arg.Any<string>(), Path.Combine(outDir, region.Id, "map.pmtiles.tmp"), Arg.Any<CancellationToken>());
+            .GenerateAsync(Arg.Any<string>(), Path.Combine(outDir, region.Id, "map.tmp.pmtiles"), Arg.Any<CancellationToken>());
 
         Assert.Equal("new sqlite bytes", File.ReadAllText(existingSqlitePath));
         Assert.True(File.Exists(Path.Combine(outDir, region.Id, "map.pmtiles")));

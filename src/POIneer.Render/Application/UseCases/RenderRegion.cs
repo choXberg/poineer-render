@@ -71,34 +71,42 @@ public sealed class RenderRegion : IRenderRegion
         string outDir,
         CancellationToken ct = default)
     {
+        // regionDto.Id may be a globally unique, hierarchical region identifier (ADR
+        // 0007), e.g. "geofabrik/europe/germany/berlin" - RegionIdentifier turns each
+        // '/'-separated segment into its own nested directory and validates the id is
+        // safe to use as a filesystem path.
         var pbfPath = GetPbfPath(workDir, regionDto.Id);
         var recreateDatabase = _rendererOptions.OverwriteDatabase || _rendererOptions.OverwritePbf;
 
         if (!File.Exists(pbfPath))
             throw new FileNotFoundException($"PBF not found: {pbfPath}");
 
-        var regionOutDir = Path.Combine(outDir, regionDto.Id);
+        var regionOutDir = RegionIdentifier.CombinePath(outDir, regionDto.Id);
         Directory.CreateDirectory(regionOutDir);
 
         var canonicalPath = Path.GetFullPath(Path.Combine(regionOutDir, PoiDatasetFileName));
         var canonicalVectorTilePath = Path.GetFullPath(Path.Combine(regionOutDir, VectorTileFileName));
+        var pbfChangedSinceOutput = File.Exists(canonicalPath)
+            && File.GetLastWriteTimeUtc(pbfPath) > File.GetLastWriteTimeUtc(canonicalPath);
 
         if (File.Exists(canonicalPath))
         {
-            if (!recreateDatabase && (!_vectorTileOptions.Enabled || File.Exists(canonicalVectorTilePath)))
+            if (!recreateDatabase && !pbfChangedSinceOutput && (!_vectorTileOptions.Enabled || File.Exists(canonicalVectorTilePath)))
             {
                 _logger.LogInformation("({Id}) Output SQLite already exists at {Out}, skipping rendering (overwrite disabled).", regionDto.Id, canonicalPath);
                 return;
             }
 
             _logger.LogInformation(
-                "({Id}) Output SQLite already exists at {Out}, but overwrite is enabled, re-rendering. It will only be replaced once the new dataset passes validation.",
+                "({Id}) Output SQLite already exists at {Out}, but re-rendering is required (overwrite: {Overwrite}, pbfChangedSinceOutput: {PbfChangedSinceOutput}). It will only be replaced once the new dataset passes validation.",
                 regionDto.Id,
-                canonicalPath);
+                canonicalPath,
+                recreateDatabase,
+                pbfChangedSinceOutput);
         }
 
         var stagingPath = canonicalPath + StagingFileSuffix;
-        var stagingVectorTilePath = canonicalVectorTilePath + StagingFileSuffix;
+        var stagingVectorTilePath = GetVectorTileStagingPath(canonicalVectorTilePath);
 
         if (File.Exists(stagingPath))
         {
@@ -181,8 +189,8 @@ public sealed class RenderRegion : IRenderRegion
 
         // Hash-based, not wall-clock: a forced re-render of byte-identical PBF input (same
         // SchemaVersion too) computes the same version and therefore the same destination
-        // filename, so IDatasetPublisher's default Skip overwrite policy makes republishing
-        // unchanged data a no-op instead of accumulating a new file on every run. Hashing
+        // filename, so IDatasetPublisher's configured overwrite policy can make
+        // republishing unchanged data a no-op instead of accumulating a new file on every run. Hashing
         // cutPbf (not the original pbfPath) so a poly-file change is also picked up, since
         // it can change what actually gets rendered even when the raw PBF download did not.
         var version = await _datasetVersionCalculator.CalculateAsync(cutPbf, ct);
@@ -277,6 +285,18 @@ public sealed class RenderRegion : IRenderRegion
     private static void PromoteVectorTileToCanonical(string stagingPath, string canonicalPath)
         => File.Move(stagingPath, canonicalPath, overwrite: true);
 
+    private static string GetVectorTileStagingPath(string canonicalPath)
+    {
+        var directory = Path.GetDirectoryName(canonicalPath);
+        var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(canonicalPath);
+        var extension = Path.GetExtension(canonicalPath);
+        var stagingFileName = $"{fileNameWithoutExtension}{StagingFileSuffix}{extension}";
+
+        return string.IsNullOrWhiteSpace(directory)
+            ? stagingFileName
+            : Path.Combine(directory, stagingFileName);
+    }
+
     /// <summary>
     /// Moves an invalid dataset out of the staging location into a per-region quarantine
     /// folder so it doesn't linger next to the canonical output, while still being
@@ -284,7 +304,7 @@ public sealed class RenderRegion : IRenderRegion
     /// </summary>
     private static string QuarantineInvalidDataset(string outDir, string regionId, string invalidDatasetPath)
     {
-        var quarantineDir = Path.Combine(outDir, regionId, "_failed");
+        var quarantineDir = Path.Combine(RegionIdentifier.CombinePath(outDir, regionId), "_failed");
         Directory.CreateDirectory(quarantineDir);
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
@@ -324,7 +344,7 @@ public sealed class RenderRegion : IRenderRegion
     }
 
     private static string GetPbfPath(string workDir, string regionId) =>
-        Path.Combine(workDir, regionId, "osm.pbf");
+        Path.Combine(RegionIdentifier.CombinePath(workDir, regionId), "osm.pbf");
 
     private async IAsyncEnumerable<Poi> MapRawPoisAsync(IAsyncEnumerable<RawPoi> rawPois, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
