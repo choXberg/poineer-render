@@ -40,6 +40,7 @@ After=docker.service
 
 [Service]
 Type=oneshot
+TimeoutStartSec=30min
 ExecStart=/usr/bin/docker run --rm --name poineer-render -v /opt/poineer-render/data:/opt/poineer-render/data poineer-render:production
 ```
 
