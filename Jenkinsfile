@@ -272,6 +272,28 @@ pipeline {
       }
     }
 
+    // Non-release builds (feature/*, develop, etc.) have no further use for the
+    // per-build CI image tag once Verify has passed - there is no Promote/Deploy
+    // stage downstream for them. Remove it explicitly and visibly here (unlike the
+    // silent, best-effort cleanup in the pipeline's post{always} block, which stays
+    // in place as a safety net for builds that get aborted before reaching this
+    // stage) so a failed removal actually shows up as a failed build instead of
+    // disappearing into `|| true` / `/dev/null`.
+    stage('Remove Non-Release Docker Image') {
+      when {
+        expression {
+          return !((env.BRANCH_NAME ?: '') ==~ /^release\/.+/)
+        }
+      }
+      steps {
+        sh '''
+          set -eux
+          IMAGE_TAG="$(cat docker-image-tag.txt)"
+          docker image rm -f "${IMAGE_TAG}"
+        '''
+      }
+    }
+
     stage('Promote Release Docker Image') {
       when {
         expression {
@@ -426,3 +448,4 @@ pipeline {
     }
   }
 }
+

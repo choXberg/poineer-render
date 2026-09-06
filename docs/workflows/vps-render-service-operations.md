@@ -94,16 +94,6 @@ Notable properties:
   not silently retried.
 - No `RemainAfterExit=yes`. This is what makes `inactive (dead)` the expected end state -
   see next section.
-- No `TimeoutStartSec=` override, so the unit uses the systemd-wide default (commonly 90s
-  unless changed in `/etc/systemd/system.conf`). This is a real risk for a data-dependent
-  workload: a render that has to fully re-download and process a PBF (no cached/unchanged
-  source) could plausibly exceed a short default start timeout, and systemd would then kill an
-  otherwise-healthy run purely on a clock, which would look identical to an application
-  failure in `systemctl status`. **Recommended fix:** add an explicit, generous
-  `TimeoutStartSec` (or `TimeoutStartSec=infinity`, relying on the application's own logic
-  and Docker to bound execution) to the service unit so a legitimately slow cold run is never
-  killed by an arbitrary systemd default. This is a one-line unit change, not a pipeline
-  redesign, and can be done independently of everything else in this issue.
 
 ## Why `inactive (dead)` After A Successful Run Is Correct
 
@@ -164,9 +154,7 @@ Verified layout under `/opt/poineer-render` (trimmed to the parts that matter op
 | Path | Owner | Role |
 | --- | --- | --- |
 | `/opt/poineer-render/` | `jenkins:jenkins` | Deploy root |
-| `/opt/poineer-render/app/` | `jenkins:jenkins` | Published `.NET` DLL artifact from the ADR 0005 deploy stage - **not used by the scheduled service**, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
-| `/opt/poineer-render/logs/render.log` | `jenkins:jenkins` | Leftover cron-era log file - **stale, no longer written**, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
-| `/opt/poineer-render/poineer-render.lock` | `jenkins:jenkins` | Leftover lock file at the old (pre-migration) path - **orphaned**, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
+| `/opt/poineer-render/app/` | `jenkins:jenkins` | Published `.NET` DLL artifact from the now-removed ADR 0005 deploy stage - CI no longer writes here; the directory itself is leftover from prior releases and pending manual removal, see [Known Issues](#known-issues--obsolete-configuration-found-during-this-review) |
 | `/opt/poineer-render/scripts/` | `jenkins:jenkins` | Reserved by ADR 0005, still empty/unused |
 | `/opt/poineer-render/data/` | `10001:10001` (`poineer`) | Shared bind mount into the container; matches `Renderer:*`/`Publisher:*` paths in `appsettings.Production.json` |
 | `/opt/poineer-render/data/prod/renderer-work-dir/{berlin,mittelfranken}/` | `10001:10001` | Downloaded PBF + per-region work state |
@@ -402,7 +390,7 @@ deployment pipeline itself, which is out of scope for this issue):
 
 | Finding | Risk | Recommendation |
 | --- | --- | --- |
-| `/opt/poineer-render/app` (published DLL) + Jenkins "Deploy to VPS"/"Verify Deployment" stages + `/opt/dotnet/current` symlink are still exercised on every `release/*` build, but the artifact they produce is **not** used by the scheduled service anymore (superseded by Docker/systemd per `scheduled-renders.md`) | Low (CI-only, doesn't affect production runtime) | **Follow-up issue**: decide whether to keep this as an intentional secondary "does the published binary still start" smoke test, or drop it now that "Verify Docker Image" proves the same thing against the artifact that's actually deployed. Changing the Jenkinsfile is explicitly out of scope for this issue. |
+| `/opt/poineer-render/app` (published DLL) + Jenkins "Deploy to VPS"/"Verify Deployment" stages + `/opt/dotnet/current` symlink were exercised on every `release/*` build, but the artifact they produced was **not** used by the scheduled service anymore (superseded by Docker/systemd per `scheduled-renders.md`) | Low (CI-only, didn't affect production runtime) | **Decided (issue #194):** dropped. `Deploy to VPS` and `Verify Deployment` (plus the `DEPLOY_APP_DIR`/`DOTNET_CURRENT` variables) removed from the Jenkinsfile - see the CI update note in [ADR 0005](../decisions/0005-automated-vps-deployment.md#ci-verification-update-vps-ops-review-cleanup). The existing `/opt/poineer-render/app` directory on the VPS is now dead weight and still needs a one-time manual removal. |
 | `/opt/poineer-render/logs/render.log` - last written 2026-08-28 03:00, i.e. before the systemd timer was even enabled that same day (10:54); no longer written since the cron migration | Low | Safe to archive/delete now; it is pure leftover from the pre-systemd cron setup and not read by anything |
 | `/opt/poineer-render/poineer-render.lock` (root of the deploy tree, distinct from the correct `data/prod/poineer-render.lock`) | Low | Orphaned from the old, pre-migration `LockFilePath`; safe to delete now |
 | `/opt/poineer-render/scripts/` - created empty by the ADR 0005 pipeline, still unused | None | Leave documented as "intentionally reserved, currently unpopulated" unless/until something actually needs it; removing the `mkdir` would touch the pipeline (follow-up territory) |
