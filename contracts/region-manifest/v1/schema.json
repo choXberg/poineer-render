@@ -42,7 +42,7 @@
     "artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "objectKey", "sizeBytes", "sha256"],
+      "required": ["type", "artifactVersion", "objectKey", "sizeBytes", "sha256"],
       "properties": {
         "type": { "enum": ["sqlite", "pmtiles"] },
         "objectKey": {
@@ -54,7 +54,7 @@
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "artifactVersion": {
           "$ref": "#/$defs/version",
-          "description": "Optional artifact version when different from releaseVersion."
+          "description": "Explicit version of this artifact, required even when equal to releaseVersion."
         }
       }
     }

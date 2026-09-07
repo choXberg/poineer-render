@@ -20,7 +20,7 @@ The contract is independent of storage providers and public domains.
 - `releaseVersion`: string identifying the published release.
 - `publishedAt`: UTC timestamp describing publication of the release.
 - `artifacts`: files belonging to the release, allowing SQLite and PMTiles.
-- Each artifact carries its `type`, `objectKey`, `sizeBytes` and full hexadecimal
+- Each artifact carries its `type`, `artifactVersion`, `objectKey`, `sizeBytes` and full hexadecimal
   SHA-256 checksum (`sha256`).
 
 Object keys are relative to the configured storage root or bucket. The server
@@ -39,8 +39,12 @@ structure; it is not yet the complete contract specification.
 
 All documented top-level fields and the five core artifact fields are required.
 Version 1 accepts exactly one SQLite artifact and optionally one PMTiles artifact.
-Unknown fields and artifact types are rejected. `artifactVersion` is optional;
-when omitted, the release version applies. Sizes are positive integer byte counts
+Unknown fields and artifact types are rejected. `artifactVersion` is always required,
+even when it equals `releaseVersion`; there is no fallback to the release version.
+The release version identifies the collection of artifacts, while each artifact
+version identifies its file. An unchanged artifact can retain its version and
+object key when reused in a new release.
+Sizes are positive integer byte counts
 and SHA-256 values contain exactly 64 lowercase hexadecimal characters.
 
 Object keys must be relative paths without traversal segments or URLs. Region
