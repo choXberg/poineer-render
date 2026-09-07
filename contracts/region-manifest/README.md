@@ -120,6 +120,29 @@ requirements; JSON Schema validates the manifest document, not storage operation
 Historical manifests, retention periods and automatic storage cleanup are deferred
 beyond the MVP and are not defined by this contract.
 
+### Complete verified release guarantee
+
+A published manifest advertises only a complete, verified release, never an
+in-progress render, pending upload or partially available artifact collection.
+Every listed artifact must exist at its advertised key and have verified byte
+size and SHA-256 matching the manifest before the release becomes current.
+This includes reused artifacts and PMTiles whenever it is part of the release.
+SQLite-only releases are complete when tiles are disabled; a failed PMTiles step
+in an intended SQLite-plus-PMTiles release must not silently produce a partial
+SQLite-only release.
+
+If an upload, verification or manifest publication fails, the previously advertised
+release must remain usable; an incomplete release must not become current.
+Schema validation establishes document validity, not that these storage and
+integrity guarantees have been fulfilled.
+
+Issue #204 defines this consumer-visible guarantee. Manifest generation and the
+publication mechanics are implemented separately in
+[#202: Publish region manifests after verified artifact uploads](https://github.com/christian-hofmeister/poineer-render/issues/202).
+That work owns upload/verification sequencing, atomic current-reference updates,
+concurrency protection, idempotent retries, failure recovery and lifecycle/cleanup
+coordination. This contract does not implement those mechanisms.
+
 ## Storage portability and configuration boundary
 
 All published contract files, including region manifests and `regions.json`, must
