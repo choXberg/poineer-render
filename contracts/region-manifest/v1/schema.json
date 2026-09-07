@@ -14,6 +14,7 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
+      "description": "Manifest contract version. Only version 1 is supported; consumers must reject unsupported versions without fallback.",
       "const": 1
     },
     "regionId": {
@@ -27,7 +28,7 @@
     "publishedAt": {
       "type": "string",
       "format": "date-time",
-      "description": "UTC publication timestamp. Validators must enable date-time format validation.",
+      "description": "Valid UTC publication timestamp with uppercase T and trailing Z; fractional seconds are optional, numeric offsets are not allowed. Validators must enable date-time format validation.",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"
     },
     "artifacts": {
@@ -85,6 +86,7 @@
         },
         "sha256": {
           "type": "string",
+          "description": "Full SHA-256 digest of the artifact file bytes, encoded as 64 lowercase hexadecimal characters without a prefix, separators or Base64.",
           "pattern": "^[0-9a-f]{64}$"
         },
         "artifactVersion": {

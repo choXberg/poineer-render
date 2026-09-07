@@ -30,10 +30,53 @@ because the object key already contains it.
 
 ## Remaining contract work
 
-Issue #204 will complete the compatibility rules,
+Issue #204 will complete
 manifest discovery and current-release references, geographic metadata source,
 and additional valid/invalid fixtures. This example establishes the agreed
 structure; it is not yet the complete contract specification.
+
+## Timestamp and checksum encoding
+
+`publishedAt` is a valid UTC date-time using uppercase `T` and a trailing uppercase
+`Z`, for example `2026-09-06T15:30:00Z`. Fractional seconds are optional, for example
+`2026-09-06T15:30:00.123Z`. Numeric offsets (including `+00:00`), local timestamps
+and date-only values are rejected. Validators must enable `date-time` format
+checking in addition to the pattern so invalid calendar dates are rejected.
+
+`sha256` encodes the full SHA-256 digest of the artifact's file bytes as exactly
+64 lowercase hexadecimal characters (`0-9`, `a-f`). Uppercase, prefixes such as
+`0x` or `sha256:`, separators and Base64 are not allowed. This is the full checksum,
+not the shortened hash component in `artifactVersion`.
+
+## Supported versions and compatibility
+
+Currently only manifest `schemaVersion: 1` is supported. This version selects the
+manifest contract; it is independent of `releaseVersion`, `artifactVersion` and
+the artifact's own database schema version. Consumers must select the validator
+by `schemaVersion` and validate the entire manifest before accepting the release.
+
+Unknown fields are forbidden at both the manifest and artifact object levels by
+`additionalProperties: false`. Unknown artifact types, missing or unsupported
+schema versions, and any other validation failure must reject the entire manifest.
+Consumers must report a clear validation error identifying the unsupported version
+or invalid field; they must not silently discard fields or artifacts, partially
+accept the release, or interpret an unsupported version as v1. These rejection
+and error-reporting requirements are runtime consumer behavior.
+
+While v1 remains a draft, its contract may be completed in place. Once finalized,
+the v1 contract is stable: new fields (including optional fields), new artifact
+types, or changes to existing validation rules or field meanings require a new
+manifest schema version and version directory. Editorial clarifications that do
+not change accepted manifests or their meaning do not require a version increment.
+An optional field is not compatible with an older strict consumer when present,
+because that consumer rejects it as unknown.
+
+Future consumers adding support for a newer manifest version must retain explicit
+v1 support and validate v1 manifests against the v1 contract. Deploy consumer
+support before producers start publishing the newer version. Older consumers
+continue to accept v1 and reject unsupported newer versions; there is no automatic
+forward compatibility or version fallback. Removing v1 support requires an explicit
+breaking migration, not a silent change to the v1 contract.
 
 ## Schema validation
 
