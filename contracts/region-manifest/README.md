@@ -80,7 +80,8 @@ relative to the configured storage root, following all listing pages when needed
 and selects keys ending exactly in `/manifest.json`. It reads and validates each
 candidate before exposing that region and its current release in the catalog.
 An artifact directory without a valid current manifest is not an available release.
-No separate region index or historical release-manifest lookup is required.
+No separate release-availability index or historical release-manifest lookup is required.
+Catalog display metadata comes from the separate published regions.json snapshot below.
 The storage adapter must provide listing and read access; public HTTP directory
 listing is not assumed.
 
@@ -115,10 +116,74 @@ requirements; JSON Schema validates the manifest document, not storage operation
 Historical manifests, retention periods and automatic storage cleanup are deferred
 beyond the MVP and are not defined by this contract.
 
+## Published region metadata source
+
+Catalog display metadata is provided separately from release manifests through
+`regions.json` at the configured storage root. POIneer.Render publishes this
+shared JSON snapshot; POIneer.Server reads it from storage and joins entries to
+manifests by exact, case-sensitive equality of `Id` and `regionId`.
+Azure Blob Storage can host the snapshot alongside manifests and artifacts;
+the contract does not require a particular provider, a shared VPS/filesystem,
+a direct service connection or access to the renderer's database.
+
+The published format preserves the existing region configuration JSON array and
+PascalCase field names. The current configuration files are
+`src/POIneer.Render/Cli/config/regions.production.json` and
+`src/POIneer.Render/Cli/config/regions.local.json`. An example published entry is:
+
+```json
+[
+  {
+    "Id": "geofabrik/europe/germany/berlin",
+    "Name": "Berlin",
+    "Country": "Germany",
+    "Category": "City",
+    "PbfUrl": "https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf"
+  }
+]
+```
+
+- `Id` is required, unique within the snapshot and follows the manifest's
+  `regionId` syntax. It is the stable join key, not a display name.
+- `Name` is a required nonempty display name.
+- `Country` and `Category` are optional display/filter strings and may be absent
+  or null, consistent with the existing region model. They do not define a parent
+  relationship; category values such as `City` and `District` are display metadata.
+- `PbfUrl` retains the renderer's source URL in the existing format. It is not an
+  artifact download URL and is not used to determine release availability.
+
+Bounds and explicit parent relationships are not provided in the MVP. Consumers
+must not invent bounds or infer a parent record from path segments. Catalog
+metadata is not duplicated in release manifests. This snapshot has no manifest
+`schemaVersion` field; its array format is a separate published contract. A future
+change to that format requires coordinated producer/consumer compatibility work.
+
+The renderer's internal source is an implementation detail: it can read today's
+JSON configuration or later query SQL and export the same published JSON shape.
+The server continues to consume the storage snapshot in either case. A change
+of internal source therefore requires no manifest or catalog exchange redesign.
+
+Publish a complete snapshot for the configured catalog, not just the regions in
+a single render job. Validate it before atomically replacing `regions.json`;
+failed publication must leave the previous snapshot intact. Publish metadata for
+a new region before its first current manifest, and preserve entries for regions
+with current manifests. Metadata-only changes do not require new artifact or
+release versions. The server requires read access; the publisher requires write
+access to the snapshot.
+
+Manifest discovery still determines which releases are available; `regions.json`
+only supplies their catalog metadata. A metadata entry without a valid current
+manifest does not make a region downloadable. If a manifest has no matching entry,
+report a catalog metadata error and omit that region from the catalog. Duplicate
+IDs or a malformed snapshot must be reported and not accepted as a new metadata
+snapshot; an unavailable source must not be treated as an empty catalog. Optional
+missing Country/Category values do not prevent a matched region from being shown.
+These publication and join rules are runtime requirements, not validation performed
+by the region-manifest schema.
+
 ## Remaining contract work
 
-Issue #204 will complete the geographic metadata source
-and additional valid/invalid fixtures. This example establishes the agreed
+Issue #204 will complete additional valid/invalid fixtures. This example establishes the agreed
 structure; it is not yet the complete contract specification.
 
 ## Timestamp and checksum encoding
