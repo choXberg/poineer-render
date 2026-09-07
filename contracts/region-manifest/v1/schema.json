@@ -33,6 +33,7 @@
     "artifacts": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 2,
       "items": {
         "$ref": "#/$defs/artifact"
       },
@@ -49,7 +50,7 @@
       },
       "minContains": 1,
       "maxContains": 1,
-      "description": "Exactly one SQLite artifact; additional artifact types are allowed. At most one artifact per type must be enforced by runtime contract validation."
+      "description": "Exactly one SQLite artifact and optionally one PMTiles artifact. Duplicate and unknown artifact types are rejected."
     }
   },
   "$defs": {
@@ -70,8 +71,8 @@
       "properties": {
         "type": {
           "type": "string",
-          "pattern": "^[a-z0-9]+(?:[_-][a-z0-9]+)*$",
-          "description": "Artifact type and file extension. Currently known types are sqlite and pmtiles; additional types are allowed."
+          "enum": ["sqlite", "pmtiles"],
+          "description": "Artifact type and file extension. Supported types are sqlite and pmtiles; additional types require a contract extension."
         },
         "objectKey": {
           "type": "string",

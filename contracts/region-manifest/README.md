@@ -38,10 +38,15 @@ structure; it is not yet the complete contract specification.
 ## Schema validation
 
 All documented top-level fields and the five core artifact fields are required.
-Version 1 requires exactly one SQLite artifact and allows additional artifact types.
-Type identifiers use lowercase letters and digits with optional underscore or hyphen
-separators. There is no fixed type list; future types do not require object-key schema changes.
-Unknown fields are rejected. `artifactVersion` is always required,
+Version 1 accepts SQLite-only releases or SQLite-plus-PMTiles releases: exactly one
+SQLite artifact is required, and at most one PMTiles artifact is optional.
+The `type` enum rejects unknown types. Combined with `maxItems: 2` and exactly one
+SQLite match (`minContains: 1`, `maxContains: 1`), the schema also rejects duplicate
+types, even when their object keys or other metadata differ. `uniqueItems` alone
+would only reject identical objects and is unnecessary here.
+Supporting another type requires a deliberate contract extension, including review
+of these cardinality rules; the generic object-key pattern remains independent of
+the type list. Unknown fields are rejected. `artifactVersion` is always required,
 even when it equals `releaseVersion`; there is no fallback to the release version.
 The release version identifies the collection of artifacts, while each artifact
 version identifies its file. An unchanged artifact can retain its version and
@@ -66,11 +71,10 @@ Producers and consumers must additionally enforce:
   is the final segment of `regionId`, and the version is the artifact's own version.
 - The object-key extension matches `type` exactly (for example, `.sqlite` or
   `.pmtiles`, with the same rule applying to future types).
-- Each artifact type occurs at most once, including optional PMTiles artifacts.
 
-Standard JSON Schema Draft 2020-12 cannot dynamically compare sibling field values
-or enforce uniqueness by a single property without enumerating types. These are
-runtime contract rules, not guarantees provided by schema validation alone.
+Standard JSON Schema Draft 2020-12 cannot dynamically compare sibling field values.
+Filename and extension matching are runtime contract rules, not guarantees provided
+by schema validation alone.
 For example: `geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite`.
 
 Use a Draft 2020-12 validator with `date-time` format checking enabled to validate
