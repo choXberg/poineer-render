@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "POIneer region manifest v1",
+  "description": "A completed regional release produced by POIneer.Render.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "regionId", "releaseVersion", "publishedAt", "artifacts"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "regionId": {
+      "type": "string",
+      "description": "Stable region identifier consisting of slash-separated path segments.",
+      "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$"
+    },
+    "releaseVersion": { "$ref": "#/$defs/version" },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC publication timestamp. Validators must enable date-time format validation.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/artifact" },
+      "contains": {
+        "type": "object",
+        "required": ["type"],
+        "properties": { "type": { "const": "sqlite" } }
+      },
+      "minContains": 1,
+      "maxContains": 1,
+      "description": "Exactly one SQLite artifact and optionally one PMTiles artifact."
+    }
+  },
+  "$defs": {
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "objectKey", "sizeBytes", "sha256"],
+      "properties": {
+        "type": { "enum": ["sqlite", "pmtiles"] },
+        "objectKey": {
+          "type": "string",
+          "description": "Relative key under the configured storage root; no URL, leading slash or traversal segments.",
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$"
+        },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "artifactVersion": {
+          "$ref": "#/$defs/version",
+          "description": "Optional artifact version when different from releaseVersion."
+        }
+      }
+    }
+  }
+}
