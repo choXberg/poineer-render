@@ -19,7 +19,7 @@ The contract is independent of storage providers and public domains.
 - `regionId`: stable hierarchical region identifier.
 - `releaseVersion`: string identifying the published release.
 - `publishedAt`: UTC timestamp describing publication of the release.
-- `artifacts`: files belonging to the release, allowing SQLite and PMTiles.
+- `artifacts`: files belonging to the release; currently known types are SQLite and PMTiles.
 - Each artifact carries its `type`, `artifactVersion`, `objectKey`, `sizeBytes` and full hexadecimal
   SHA-256 checksum (`sha256`).
 
@@ -38,8 +38,10 @@ structure; it is not yet the complete contract specification.
 ## Schema validation
 
 All documented top-level fields and the five core artifact fields are required.
-Version 1 accepts exactly one SQLite artifact and optionally one PMTiles artifact.
-Unknown fields and artifact types are rejected. `artifactVersion` is always required,
+Version 1 requires exactly one SQLite artifact and allows additional artifact types.
+Type identifiers use lowercase letters and digits with optional underscore or hyphen
+separators. There is no fixed type list; future types do not require object-key schema changes.
+Unknown fields are rejected. `artifactVersion` is always required,
 even when it equals `releaseVersion`; there is no fallback to the release version.
 The release version identifies the collection of artifacts, while each artifact
 version identifies its file. An unchanged artifact can retain its version and
@@ -47,9 +49,29 @@ object key when reused in a new release.
 Sizes are positive integer byte counts
 and SHA-256 values contain exactly 64 lowercase hexadecimal characters.
 
-Object keys must be relative paths without traversal segments or URLs. Region
-identifiers use lowercase path segments. Versions are nonempty strings of
-alphanumeric components separated by dots, underscores or hyphens.
+Object keys use lowercase relative path segments containing only `a-z`, `0-9`,
+`.`, `_`, `-` and `/`. Each segment consists of alphanumeric components separated
+by a single dot, underscore or hyphen. Leading/trailing slashes, empty segments,
+`.`/`..` traversal segments, URLs and uppercase characters are rejected.
+Region identifiers use the same lowercase path syntax.
+Both `artifactVersion` and `releaseVersion` match `^[1-9][0-9]*-[a-f0-9]{16}$`:
+a positive schema version without leading zeros, a hyphen and exactly 16 lowercase
+hexadecimal characters. `artifactVersion` remains explicitly required.
+
+### Runtime contract validation
+
+Producers and consumers must additionally enforce:
+
+- The filename is `<region-name>.<artifactVersion>.<type>`, where `region-name`
+  is the final segment of `regionId`, and the version is the artifact's own version.
+- The object-key extension matches `type` exactly (for example, `.sqlite` or
+  `.pmtiles`, with the same rule applying to future types).
+- Each artifact type occurs at most once, including optional PMTiles artifacts.
+
+Standard JSON Schema Draft 2020-12 cannot dynamically compare sibling field values
+or enforce uniqueness by a single property without enumerating types. These are
+runtime contract rules, not guarantees provided by schema validation alone.
+For example: `geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite`.
 
 Use a Draft 2020-12 validator with `date-time` format checking enabled to validate
 calendar dates as well as the required UTC timestamp shape. Schema validation
