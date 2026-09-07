@@ -77,7 +77,7 @@
         },
         "objectKey": {
           "type": "string",
-          "description": "Lowercase relative key under the configured storage root; no URL, leading slash or traversal segments. Filename: <region-name>.<artifactVersion>.<type>. Runtime contract validation must check that the region name, version and extension match the corresponding manifest fields.",
+          "description": "Lowercase relative key resolved from the configured storage root, not the manifest directory; no URL, leading slash or traversal segments. Filename: <region-name>.<artifactVersion>.<type>. Runtime contract validation must check that the region name, version and extension match the corresponding manifest fields.",
           "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$"
         },
         "sizeBytes": {

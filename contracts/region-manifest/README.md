@@ -28,10 +28,64 @@ resolves these references into download URLs. Credentials, domains and expiring
 signed URLs do not belong in this manifest. A separate file name is unnecessary
 because the object key already contains it.
 
+## Manifest paths and current-release discovery
+
+Each region has one current manifest at `<regionId>/manifest.json`, relative to
+the configured storage root or bucket. For Berlin, the manifest key is:
+
+```text
+geofabrik/europe/germany/berlin/manifest.json
+```
+
+This fixed path identifies the current release. Consumers read `releaseVersion`
+and `artifacts` from this manifest; they must not infer the current release from
+artifact filenames, version sorting or storage modification timestamps. The
+manifest's `regionId` must equal the path preceding `/manifest.json`; consumers
+must reject a mismatch as a contract validation error.
+
+For MVP discovery, POIneer.Server lists objects recursively under `geofabrik/`
+relative to the configured storage root, following all listing pages when needed,
+and selects keys ending exactly in `/manifest.json`. It reads and validates each
+candidate before exposing that region and its current release in the catalog.
+An artifact directory without a valid current manifest is not an available release.
+No separate region index or historical release-manifest lookup is required.
+The storage adapter must provide listing and read access; public HTTP directory
+listing is not assumed.
+
+## Artifact-reference resolution and publication
+
+Each `artifacts[].objectKey` is the complete relative reference to an artifact
+under the same configured storage root as the manifest. Resolve it from that root,
+not from the manifest's directory, and do not prepend `regionId` again. For example:
+
+```text
+Storage root:  https://storage.example.com/datasets/
+Manifest key:  geofabrik/europe/germany/berlin/manifest.json
+Artifact key:  geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
+Artifact URL:  https://storage.example.com/datasets/geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
+```
+
+The URL is illustrative. For filesystem storage, resolve the key beneath the
+configured directory; for object storage, use the configured bucket/container
+and root prefix plus the key. Private storage may require the server to generate
+an authorized download URL. Credentials and signed URLs remain outside the manifest.
+
+The producer must finish uploading and verifying all referenced artifacts before
+publishing the current manifest. Reused artifacts must already be complete and
+available at their existing keys. Replace `<regionId>/manifest.json` atomically
+so readers see a complete old or new manifest, never a partially written document.
+If artifact publication fails, leave the current manifest unchanged. Published
+artifact keys must continue to identify the same file bytes; changed artifacts
+receive new versioned keys.
+
+These discovery, path-resolution and publication rules are runtime contract
+requirements; JSON Schema validates the manifest document, not storage operations.
+Historical manifests, retention periods and automatic storage cleanup are deferred
+beyond the MVP and are not defined by this contract.
+
 ## Remaining contract work
 
-Issue #204 will complete
-manifest discovery and current-release references, geographic metadata source,
+Issue #204 will complete the geographic metadata source
 and additional valid/invalid fixtures. This example establishes the agreed
 structure; it is not yet the complete contract specification.
 
