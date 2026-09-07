@@ -53,6 +53,13 @@ filesystem or Azure Blob Storage:
 This is enough for the MVP and keeps rendering independent from any mandatory cloud
 dependency.
 
+## Producer/consumer contract
+
+The [region manifest contract](../../contracts/region-manifest/README.md) is the shared
+specification for POIneer.Render publication and POIneer.Server catalog consumption.
+Use its schemas and fixtures for both integrations; publication implementation remains in
+[issue #202](https://github.com/christian-hofmeister/poineer-render/issues/202).
+
 ## Planned Architecture
 
 The planned architecture keeps the same boundaries while adding cloud-backed storage and,
