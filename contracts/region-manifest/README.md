@@ -116,6 +116,49 @@ requirements; JSON Schema validates the manifest document, not storage operation
 Historical manifests, retention periods and automatic storage cleanup are deferred
 beyond the MVP and are not defined by this contract.
 
+## Storage portability and configuration boundary
+
+All published contract files, including region manifests and `regions.json`, must
+remain independent of the deployment location and storage account. Manifest paths
+and artifact object keys are relative to an application-configured storage root.
+They must not contain absolute filesystem paths, drive letters, bucket/container
+names added as account configuration, or provider-specific endpoints.
+
+Provider selection, local root directories, account endpoints, bucket/container
+names, root prefixes and authentication settings belong in the consuming or
+publishing application's configuration, not in the published contract files.
+Never embed credentials, connection strings, access keys, bearer tokens or
+expiring signed URLs (including SAS and presigned URLs) in these files. The server
+may generate an authorized download URL at request time from a validated object
+key and its own configuration; that URL is not persisted in the contract.
+
+`PbfUrl` is a source-data reference, not a storage-account setting or artifact
+reference. Public, stable source URLs such as the existing Geofabrik HTTPS URLs
+are allowed. They must not contain embedded credentials or expiring access tokens.
+If an input source needs authentication, configure it separately in the renderer.
+
+The same artifact reference works without modifying the manifest in either case:
+
+```text
+objectKey: geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
+
+Local configuration:
+  root directory: C:/datasets
+  resolved file:  C:/datasets/geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
+
+Object-storage configuration:
+  container: datasets
+  root prefix: published/
+  resolved key: published/geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
+```
+
+These configuration values are illustrative and are not manifest fields. Storage
+adapters resolve validated relative keys beneath the configured root and apply
+platform-specific path handling internally. The same rule applies to `regions.json`
+and `<regionId>/manifest.json`. Publication must enforce this boundary for all
+exported files; JSON Schema alone does not detect every possible credential or
+access token embedded in otherwise permitted string values.
+
 ## Published region metadata source
 
 Catalog display metadata is provided separately from release manifests through
