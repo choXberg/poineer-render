@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "regionId": "geofabrik/europe/germany/berlin",
+  "releaseVersion": "4-d790344f01234567",
+  "publishedAt": "2026-09-06T15:30:00Z",
+  "artifacts": [
+    {
+      "type": "sqlite",
+      "artifactVersion": "4-d790344f01234567",
+      "objectKey": "geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite",
+      "sizeBytes": 187654321,
+      "sha256": "d790344f01234567012345670123456701234567012345670123456701234567"
+    },
+    {
+      "type": "unknown",
+      "artifactVersion": "4-d790344f01234567",
+      "objectKey": "geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.unknown",
+      "sizeBytes": 187654321,
+      "sha256": "d790344f01234567012345670123456701234567012345670123456701234567"
+    }
+  ]
+}

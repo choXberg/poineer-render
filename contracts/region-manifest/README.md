@@ -11,6 +11,10 @@ The contract is independent of storage providers and public domains.
 - `v1/schema.json`: machine-readable JSON Schema (Draft 2020-12).
 - `v1/examples/berlin.json`: illustrative SQLite-only manifest with synthetic
   version, size and checksum values; it does not reference a real published file.
+- `v1/examples/berlin-with-pmtiles.json`: valid two-artifact release with an independently versioned PMTiles file.
+- `v1/invalid/`: standalone negative fixtures for schema and filename contract validation.
+- `v1/fixtures.json`: shared fixture paths, expected outcomes and reasons.
+- `Test-RegionManifest.ps1`: executable fixture checks, requiring PowerShell 7.4 or later.
 - The version directory tracks the manifest schema, not dataset releases.
 
 ## Agreed structure
@@ -224,10 +228,39 @@ missing Country/Category values do not prevent a matched region from being shown
 These publication and join rules are runtime requirements, not validation performed
 by the region-manifest schema.
 
-## Remaining contract work
+## Shared fixtures and validation
 
-Issue #204 will complete additional valid/invalid fixtures. This example establishes the agreed
-structure; it is not yet the complete contract specification.
+Renderer and server can consume the same standalone JSON fixtures without .NET
+DTOs, storage access or rendered datasets. Both Berlin examples contain synthetic
+versions, sizes and checksums; they are contract fixtures, not downloadable data.
+Use `v1/fixtures.json` as the language-independent test case inventory:
+
+- `schemaValid` is the expected result of Draft 2020-12 validation with `date-time`
+  format checking enabled.
+- `contractValid` additionally checks that the filename matches the region name,
+  artifact version and type. It does not assert remote existence, actual file
+  size/checksum, publication history or catalog metadata availability.
+- `reason` explains the case. All paths are relative to `v1/`.
+
+The negative fixtures cover required artifact versions, version syntax, unknown
+versions and fields, missing/duplicate/unknown artifact types, empty releases,
+unsafe or uppercase paths, timestamp offsets, invalid calendar dates, checksum
+encoding and positive byte sizes. The three `mismatched-*` cases are deliberately
+schema-valid and fail only the documented cross-field filename rules.
+
+Run from the repository root:
+
+```powershell
+pwsh -NoProfile -File contracts/region-manifest/Test-RegionManifest.ps1
+```
+
+The script resolves inputs relative to its own location, checks every registered
+fixture, rejects unregistered fixture files and fails with a nonzero exit code on
+unexpected results. It uses `Test-Json` for schema validation and supplements its
+missing date-time format enforcement with .NET `XmlConvert` calendar/time checking
+after the schema's UTC pattern check. Consumers using another validator must enable
+its date-time format checking explicitly. Filename checks are separate from schema
+validation. No new package dependencies or storage credentials are required.
 
 ## Timestamp and checksum encoding
 

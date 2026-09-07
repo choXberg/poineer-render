@@ -49,3 +49,16 @@ Generate coverage through the repository helper:
 - Use `NullLogger<T>.Instance` unless a test explicitly asserts log output.
 - Add path-sensitive Flyway/SQLite coverage when changing migration or path resolution behavior.
 - Put new tests in the narrowest matching project; if a test does not need infrastructure, prefer unit tests.
+
+## Region manifest fixtures
+
+Renderer/server JSON contract fixtures and their expected outcomes live under
+`contracts/region-manifest/v1/`. Run the standalone schema and filename checks
+with PowerShell 7.4 or later (separate from `dotnet test`):
+
+```powershell
+pwsh -NoProfile -File contracts/region-manifest/Test-RegionManifest.ps1
+```
+
+See [the contract README](../contracts/region-manifest/README.md) for fixture
+semantics and timestamp format validation. These checks need no storage access.

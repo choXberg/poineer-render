@@ -1,0 +1,146 @@
+[
+  {
+    "file": "examples/berlin.json",
+    "schemaValid": true,
+    "contractValid": true,
+    "reason": "SQLite-only Berlin release."
+  },
+  {
+    "file": "examples/berlin-with-pmtiles.json",
+    "schemaValid": true,
+    "contractValid": true,
+    "reason": "SQLite plus PMTiles; independent artifact version, multi-digit version prefix and fractional timestamp."
+  },
+  {
+    "file": "invalid/missing-artifact-version.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "missing artifact version"
+  },
+  {
+    "file": "invalid/short-artifact-version.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "short artifact version"
+  },
+  {
+    "file": "invalid/leading-zero-version.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "leading zero version"
+  },
+  {
+    "file": "invalid/unknown-schema-version.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "unknown schema version"
+  },
+  {
+    "file": "invalid/unknown-manifest-field.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "unknown manifest field"
+  },
+  {
+    "file": "invalid/unknown-artifact-field.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "unknown artifact field"
+  },
+  {
+    "file": "invalid/empty-artifacts.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "empty artifacts"
+  },
+  {
+    "file": "invalid/missing-sqlite.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "missing sqlite"
+  },
+  {
+    "file": "invalid/duplicate-sqlite.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "duplicate sqlite"
+  },
+  {
+    "file": "invalid/duplicate-pmtiles.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "duplicate pmtiles"
+  },
+  {
+    "file": "invalid/unknown-artifact-type.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "unknown artifact type"
+  },
+  {
+    "file": "invalid/uppercase-object-key.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "uppercase object key"
+  },
+  {
+    "file": "invalid/absolute-object-key.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "absolute object key"
+  },
+  {
+    "file": "invalid/traversal-object-key.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "traversal object key"
+  },
+  {
+    "file": "invalid/timestamp-offset.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "timestamp offset"
+  },
+  {
+    "file": "invalid/invalid-calendar-date.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "invalid calendar date"
+  },
+  {
+    "file": "invalid/uppercase-checksum.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "uppercase checksum"
+  },
+  {
+    "file": "invalid/short-checksum.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "short checksum"
+  },
+  {
+    "file": "invalid/zero-size.json",
+    "schemaValid": false,
+    "contractValid": false,
+    "reason": "zero size"
+  },
+  {
+    "file": "invalid/mismatched-extension.json",
+    "schemaValid": true,
+    "contractValid": false,
+    "reason": "Schema-valid path, but extension does not match the manifest fields."
+  },
+  {
+    "file": "invalid/mismatched-filename-version.json",
+    "schemaValid": true,
+    "contractValid": false,
+    "reason": "Schema-valid path, but filename-version does not match the manifest fields."
+  },
+  {
+    "file": "invalid/mismatched-region-name.json",
+    "schemaValid": true,
+    "contractValid": false,
+    "reason": "Schema-valid path, but region-name does not match the manifest fields."
+  }
+]
