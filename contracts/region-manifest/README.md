@@ -28,6 +28,38 @@ resolves these references into download URLs. Credentials, domains and expiring
 signed URLs do not belong in this manifest. A separate file name is unnecessary
 because the object key already contains it.
 
+## Version identity and mutable current-release reference
+
+| Field | Identifies | Change rule |
+| --- | --- | --- |
+| `schemaVersion` | The manifest contract format. | Changes when the finalized contract changes incompatibly; publishing a dataset does not change it. |
+| `releaseVersion` | A specific collection of artifacts for one region. | A changed collection or changed artifact metadata requires a new release version. |
+| `artifactVersion` | A specific artifact file within its region and type. | Changed file bytes require a new artifact version and object key; an unchanged file can be reused across releases. |
+
+The pair `(regionId, releaseVersion)` must always identify the same artifact
+collection, including each artifact's type, version, object key, size and checksum.
+A producer must not reuse that release identity for a different collection.
+Similarly, an artifact version within the same region and type, and its published
+object key, must not be reassigned to different file bytes. These immutability
+rules are producer/runtime obligations; a schema cannot compare publications.
+
+For example, a release can replace its SQLite artifact while reusing its PMTiles
+artifact. The release receives a new `releaseVersion`; the unchanged PMTiles file
+retains its `artifactVersion` and `objectKey`, and `schemaVersion` stays the same.
+Versions identify content or contract revisions; consumers must not assume all
+three values are equal or use them to infer which release is current.
+
+`<regionId>/manifest.json` is the mutable current-release reference: its contents
+are replaced when another release becomes current. It is not an immutable URL
+for the release it happens to describe. Versioned artifact keys identify fixed
+file bytes, while the release identity identifies a fixed artifact collection.
+
+The MVP does not provide a permanently retrievable manifest path for each release
+version. Once the current manifest is replaced, the previous release manifest
+need not remain retrievable. Immutable release-manifest references and historical
+manifest storage are deferred beyond the MVP; immutable identity does not imply
+indefinite storage retention.
+
 ## Manifest paths and current-release discovery
 
 Each region has one current manifest at `<regionId>/manifest.json`, relative to

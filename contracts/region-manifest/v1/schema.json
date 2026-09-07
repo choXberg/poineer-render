@@ -23,7 +23,8 @@
       "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$"
     },
     "releaseVersion": {
-      "$ref": "#/$defs/version"
+      "$ref": "#/$defs/version",
+      "description": "Identifies a fixed artifact collection and its metadata within this region; must not be reused for a different collection. The current manifest path is mutable; the MVP provides no permanent per-release manifest path."
     },
     "publishedAt": {
       "type": "string",
@@ -91,7 +92,7 @@
         },
         "artifactVersion": {
           "$ref": "#/$defs/version",
-          "description": "Explicit version of this artifact, required even when equal to releaseVersion."
+          "description": "Explicit version of this artifact file within its region and type, required even when equal to releaseVersion. Must not identify different file bytes; unchanged artifacts retain their version when reused across releases."
         }
       }
     }
