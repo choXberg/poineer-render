@@ -4,15 +4,26 @@
   "description": "A completed regional release produced by POIneer.Render.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "regionId", "releaseVersion", "publishedAt", "artifacts"],
+  "required": [
+    "schemaVersion",
+    "regionId",
+    "releaseVersion",
+    "publishedAt",
+    "artifacts"
+  ],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 1 },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
     "regionId": {
       "type": "string",
       "description": "Stable region identifier consisting of slash-separated path segments.",
       "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$"
     },
-    "releaseVersion": { "$ref": "#/$defs/version" },
+    "releaseVersion": {
+      "$ref": "#/$defs/version"
+    },
     "publishedAt": {
       "type": "string",
       "format": "date-time",
@@ -23,11 +34,19 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 2,
-      "items": { "$ref": "#/$defs/artifact" },
+      "items": {
+        "$ref": "#/$defs/artifact"
+      },
       "contains": {
         "type": "object",
-        "required": ["type"],
-        "properties": { "type": { "const": "sqlite" } }
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "sqlite"
+          }
+        }
       },
       "minContains": 1,
       "maxContains": 1,
@@ -42,16 +61,33 @@
     "artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "artifactVersion", "objectKey", "sizeBytes", "sha256"],
+      "required": [
+        "type",
+        "artifactVersion",
+        "objectKey",
+        "sizeBytes",
+        "sha256"
+      ],
       "properties": {
-        "type": { "enum": ["sqlite", "pmtiles"] },
+        "type": {
+          "enum": [
+            "sqlite",
+            "pmtiles"
+          ]
+        },
         "objectKey": {
           "type": "string",
           "description": "Relative key under the configured storage root; no URL, leading slash or traversal segments.",
           "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$"
         },
-        "sizeBytes": { "type": "integer", "minimum": 1 },
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
         "artifactVersion": {
           "$ref": "#/$defs/version",
           "description": "Explicit version of this artifact, required even when equal to releaseVersion."
