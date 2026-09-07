@@ -478,6 +478,13 @@ This project is intended as a learning and open-source project. The final licens
 
 ---
 
+## Region manifest producer contract
+
+POIneer.Render is the producer of the shared [region manifest contract](contracts/region-manifest/README.md).
+It defines the schema, region metadata exchange, discovery rules and reusable validation fixtures
+consumed by POIneer.Server. Manifest generation and publication are tracked separately in
+[issue #202](https://github.com/christian-hofmeister/poineer-render/issues/202).
+
 ## Related Documents
 
 - [Git - Branch Flow Guide](README-GIT-FLOW.md)
