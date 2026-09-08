@@ -1,6 +1,6 @@
 # Region manifest contract
 
-Status: Draft (issue #204).
+Status: Draft (original contract #204; separate storage roots #207).
 
 POIneer.Render produces manifests describing completed regional releases.
 POIneer.Server consumes them to build its catalog and resolve download URLs.
@@ -27,7 +27,7 @@ The contract is independent of storage providers and public domains.
 - Each artifact carries its `type`, `artifactVersion`, `objectKey`, `sizeBytes` and full hexadecimal
   SHA-256 checksum (`sha256`).
 
-Object keys are relative to the configured storage root or bucket. The server
+Object keys are relative to the configured artifact storage root or bucket. The server
 resolves these references into download URLs. Credentials, domains and expiring
 signed URLs do not belong in this manifest. A separate file name is unnecessary
 because the object key already contains it.
@@ -67,7 +67,7 @@ indefinite storage retention.
 ## Manifest paths and current-release discovery
 
 Each region has one current manifest at `<regionId>/manifest.json`, relative to
-the configured storage root or bucket. For Berlin, the manifest key is:
+the configured metadata storage root or bucket. For Berlin, the manifest key is:
 
 ```text
 geofabrik/europe/germany/berlin/manifest.json
@@ -80,7 +80,7 @@ manifest's `regionId` must equal the path preceding `/manifest.json`; consumers
 must reject a mismatch as a contract validation error.
 
 For MVP discovery, POIneer.Server lists objects recursively under `geofabrik/`
-relative to the configured storage root, following all listing pages when needed,
+relative to the configured metadata storage root, following all listing pages when needed,
 and selects keys ending exactly in `/manifest.json`. It reads and validates each
 candidate before exposing that region and its current release in the catalog.
 An artifact directory without a valid current manifest is not an available release.
@@ -92,18 +92,19 @@ listing is not assumed.
 ## Artifact-reference resolution and publication
 
 Each `artifacts[].objectKey` is the complete relative reference to an artifact
-under the same configured storage root as the manifest. Resolve it from that root,
+under the independently configured artifact storage root. Resolve it from that root,
 not from the manifest's directory, and do not prepend `regionId` again. For example:
 
 ```text
-Storage root:  https://storage.example.com/datasets/
+Metadata root: https://metadata.example.com/regions/
+Artifact root: https://storage.example.com/datasets/
 Manifest key:  geofabrik/europe/germany/berlin/manifest.json
 Artifact key:  geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
 Artifact URL:  https://storage.example.com/datasets/geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
 ```
 
 The URL is illustrative. For filesystem storage, resolve the key beneath the
-configured directory; for object storage, use the configured bucket/container
+configured artifact directory; for object storage, use the artifact bucket/container
 and root prefix plus the key. Private storage may require the server to generate
 an authorized download URL. Credentials and signed URLs remain outside the manifest.
 
@@ -143,11 +144,38 @@ That work owns upload/verification sequencing, atomic current-reference updates,
 concurrency protection, idempotent retries, failure recovery and lifecycle/cleanup
 coordination. This contract does not implement those mechanisms.
 
+## Independent storage roots
+
+Application configuration defines two independently selected storage roots:
+
+| Root | Contents | Planned deployment |
+| --- | --- | --- |
+| Metadata | `regions.json` and `<regionId>/manifest.json` | Azure Blob Storage |
+| Artifact | Versioned SQLite and PMTiles files referenced by `objectKey` | Hetzner Object Storage |
+
+Both roots may point to the same storage, including one local directory. Resolve
+each reference against its designated root even in that case. Do not fall back to
+the metadata root for artifacts or discover releases by listing artifact storage.
+One configured artifact root is sufficient for the MVP; per-artifact provider
+fields are not part of the manifest.
+
+Publish and verify artifacts first, then atomically replace the current manifest
+in metadata storage. Publish the complete `regions.json` snapshot there before
+advertising a new region. There is no transaction spanning both stores. If metadata
+publication fails, preserve the previous release and retry using already verified
+immutable artifacts. A metadata source failure is not an empty catalog and must
+not authorize retention to delete potentially referenced files. Publication and
+retention must coordinate to protect current, cached and in-progress releases.
+
+Changing a root is a deployment migration: preserve referenced bytes and metadata
+and coordinate producer/consumer configuration before switching. Changing an
+artifact root alone does not move files or preserve active download URLs.
+
 ## Storage portability and configuration boundary
 
 All published contract files, including region manifests and `regions.json`, must
 remain independent of the deployment location and storage account. Manifest paths
-and artifact object keys are relative to an application-configured storage root.
+are relative to the metadata root; artifact object keys are relative to the artifact root.
 They must not contain absolute filesystem paths, drive letters, bucket/container
 names added as account configuration, or provider-specific endpoints.
 
@@ -169,31 +197,32 @@ The same artifact reference works without modifying the manifest in either case:
 ```text
 objectKey: geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
 
-Local configuration:
+Local artifact configuration:
   root directory: C:/datasets
   resolved file:  C:/datasets/geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
 
-Object-storage configuration:
+Object-storage artifact configuration:
   container: datasets
   root prefix: published/
   resolved key: published/geofabrik/europe/germany/berlin/berlin.4-d790344f01234567.sqlite
 ```
 
 These configuration values are illustrative and are not manifest fields. Storage
-adapters resolve validated relative keys beneath the configured root and apply
-platform-specific path handling internally. The same rule applies to `regions.json`
-and `<regionId>/manifest.json`. Publication must enforce this boundary for all
+adapters resolve validated relative keys beneath their designated root and apply
+platform-specific path handling internally. Resolve `regions.json` and
+`<regionId>/manifest.json` beneath the metadata root. Publication must enforce this boundary for all
 exported files; JSON Schema alone does not detect every possible credential or
 access token embedded in otherwise permitted string values.
 
 ## Published region metadata source
 
 Catalog display metadata is provided separately from release manifests through
-`regions.json` at the configured storage root. POIneer.Render publishes this
+`regions.json` at the configured metadata storage root. POIneer.Render publishes this
 shared JSON snapshot; POIneer.Server reads it from storage and joins entries to
 manifests by exact, case-sensitive equality of `Id` and `regionId`.
-Azure Blob Storage can host the snapshot alongside manifests and artifacts;
-the contract does not require a particular provider, a shared VPS/filesystem,
+Azure Blob Storage hosts the snapshot alongside manifests in the planned deployment;
+artifacts reside separately in Hetzner Object Storage. The contract does not require
+a particular provider, a shared VPS/filesystem,
 a direct service connection or access to the renderer's database.
 
 The published format preserves the existing region configuration JSON array and
@@ -285,6 +314,12 @@ after the schema's UTC pattern check. Consumers using another validator must ena
 its date-time format checking explicitly. Filename checks are separate from schema
 validation. No new package dependencies or storage credentials are required.
 
+Producer/consumer implementation tests must use distinct metadata and artifact
+roots, verify discovery only in metadata storage and resolve artifacts only from
+artifact storage. Also cover a shared-root local configuration and metadata
+publication failure after successful artifact verification. These behaviors belong
+to #202/#203; the JSON fixture validator cannot check storage resolution.
+
 ## Timestamp and checksum encoding
 
 `publishedAt` is a valid UTC date-time using uppercase `T` and a trailing uppercase
@@ -312,6 +347,11 @@ Consumers must report a clear validation error identifying the unsupported versi
 or invalid field; they must not silently discard fields or artifacts, partially
 accept the release, or interpret an unsupported version as v1. These rejection
 and error-reporting requirements are runtime consumer behavior.
+
+The separate-root amendment (#207) changes the earlier shared-root meaning of
+`objectKey` in draft v1 without changing JSON fields or fixtures. This is a semantic
+amendment. Consumers built against the earlier draft must update their resolution
+and configuration before using separate roots.
 
 While v1 remains a draft, its contract may be completed in place. Once finalized,
 the v1 contract is stable: new fields (including optional fields), new artifact

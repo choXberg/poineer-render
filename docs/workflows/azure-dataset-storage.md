@@ -14,6 +14,20 @@ Azure Blob Storage
 
 ## Current Scope
 
+The instructions below describe the existing Azure artifact storage option.
+The planned distribution in [ADR 0009](../decisions/0009-separate-metadata-artifact-storage-roots.md)
+uses Azure for `regions.json` and current manifests, and Hetzner for SQLite/PMTiles.
+Existing Azure artifact publishing remains supported; this decision does not
+repurpose containers or change deployed configuration automatically.
+
+Implementation (#202/#203) must configure the metadata account/container/prefix
+independently of the artifact endpoint/bucket/prefix. The renderer needs metadata
+publication access; the server needs metadata listing/read access. Hetzner upload,
+verification and optional signing permissions are separate. Keep credentials outside
+source control. Final option names and operational setup accompany implementation.
+Verify Hetzner artifacts before updating the Azure manifest; publication failure
+must preserve the previous release. Clients download large files directly from Hetzner.
+
 This workflow provisions only storage:
 
 - one Azure Storage Account

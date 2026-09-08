@@ -485,6 +485,11 @@ It defines the schema, region metadata exchange, discovery rules and reusable va
 consumed by POIneer.Server. Manifest generation and publication are tracked separately in
 [issue #202](https://github.com/christian-hofmeister/poineer-render/issues/202).
 
+Planned distribution uses Azure Blob Storage for `regions.json` and manifests,
+and Hetzner Object Storage for SQLite/PMTiles downloads. The metadata and artifact
+roots are independent and may also share a destination. Runtime implementation
+remains in #202/#203; see [ADR 0009](docs/decisions/0009-separate-metadata-artifact-storage-roots.md).
+
 ## Related Documents
 
 - [Git - Branch Flow Guide](README-GIT-FLOW.md)
